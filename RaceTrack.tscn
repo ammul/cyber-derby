@@ -30,7 +30,8 @@ void fragment() {
     // 1. Bildschirmkrümmung (Fisheye-Effekt)
     // Wir berechnen die Verschiebung basierend auf der Entfernung zur Mitte
     vec2 centered_uv = uv * 2.0 - 1.0;
-    vec2 offset = centered_uv * (centered_uv.x * centered_uv.y) * curvature;
+    float r2 = dot(centered_uv, centered_uv);
+    vec2 offset = centered_uv * r2 * curvature;
     uv += offset;
     
     // 2. Chromatic Aberration (Farbverschiebung)

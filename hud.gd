@@ -14,6 +14,23 @@ func _ready() -> void:
 	win_overlay.hide()
 	countdown_label.show()
 	countdown_label.text = "WÄHLE DEIN PFERD!"
+	_add_github_button()
+
+
+func _add_github_button() -> void:
+	var btn := Button.new()
+	btn.text = "< / > GitHub"
+	btn.anchor_left = 1.0
+	btn.anchor_right = 1.0
+	btn.anchor_top = 0.0
+	btn.anchor_bottom = 0.0
+	btn.offset_left = -110.0
+	btn.offset_right = -8.0
+	btn.offset_top = 8.0
+	btn.offset_bottom = 34.0
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.pressed.connect(func() -> void: OS.shell_open("https://github.com/ammul/cyber-derby"))
+	add_child(btn)
 
 
 func _on_selection_done() -> void:

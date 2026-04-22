@@ -69,8 +69,8 @@ const LANE_STAY_BONUS      := 1.0
 const REPULSION_RADIUS   := 40.0
 const REPULSION_STRENGTH := 150.0
 
-# Camera
-const CAMERA_SMOOTHING   := 0.005
+# Camera (follow_speed is in units/second; higher = snappier)
+const CAMERA_SMOOTHING   := 5.0
 const CAMERA_LEAD_OFFSET := 200.0
 
 # Selection
