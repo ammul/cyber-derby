@@ -1,0 +1,208 @@
+[gd_scene format=3 uid="uid://dvh0snlcoc0uc"]
+
+[ext_resource type="Script" uid="uid://djuuc7t53ssa8" path="res://RaceTrack.gd" id="1_uw2il"]
+[ext_resource type="Script" uid="uid://c4xh0ewn7e3w" path="res://MainCamera.gd" id="2_nj26d"]
+[ext_resource type="Script" uid="uid://c5vyyh35tlk15" path="res://Horse.gd" id="3_p6qvv"]
+[ext_resource type="Script" uid="uid://n3cgifuqebtd" path="res://hud.gd" id="4_ilbxy"]
+
+[sub_resource type="Environment" id="Environment_ilbxy"]
+background_mode = 3
+glow_enabled = true
+glow_intensity = 0.8
+glow_bloom = 0.5
+glow_blend_mode = 0
+glow_hdr_threshold = 1.15
+
+[sub_resource type="Shader" id="Shader_ilbxy"]
+code = "shader_type canvas_item;
+
+// Ermöglicht den Zugriff auf das, was hinter dem ColorRect liegt
+uniform sampler2D SCREEN_TEXTURE : hint_screen_texture, filter_linear_mipmap;
+
+// Regler für den Inspektor
+uniform float curvature : hint_range(0.0, 0.1) = 0.06;
+uniform float scanline_density : hint_range(100.0, 1000.0) = 1100.0;
+uniform float scanline_opacity : hint_range(0.0, 0.5) = 0.5;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    
+    // 1. Bildschirmkrümmung (Fisheye-Effekt)
+    // Wir berechnen die Verschiebung basierend auf der Entfernung zur Mitte
+    vec2 centered_uv = uv * 2.0 - 1.0;
+    vec2 offset = centered_uv * (centered_uv.x * centered_uv.y) * curvature;
+    uv += offset;
+    
+    // 2. Chromatic Aberration (Farbverschiebung)
+    // Wir lesen die Farbkanäle leicht versetzt aus
+    float r = texture(SCREEN_TEXTURE, uv + vec2(0.001, 0.0)).r;
+    float g = texture(SCREEN_TEXTURE, uv).g;
+    float b = texture(SCREEN_TEXTURE, uv - vec2(0.001, 0.0)).b;
+    vec3 color = vec3(r, g, b);
+    
+    // 3. Scanlines
+    // Erzeugt horizontale dunkle Streifen
+    float scanline = sin(uv.y * scanline_density) * scanline_opacity;
+    color -= scanline;
+    
+    // 4. Vignette (Dunkle Ränder)
+    // Sorgt dafür, dass die Ecken abgerundet und dunkel wirken
+    float vignette = uv.x * (1.0 - uv.x) * uv.y * (1.0 - uv.y) * 15.0;
+    color *= pow(vignette, 0.25);
+    
+    // 5. Ergebnis ausgeben
+    // Wenn UV außerhalb der 0-1 Range ist (durch Krümmung), zeichne Schwarz
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        COLOR = vec4(0.0, 0.0, 0.0, 1.0);
+    } else {
+        COLOR = vec4(color, 1.0);
+    }
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_0vvgo"]
+shader = SubResource("Shader_ilbxy")
+shader_parameter/curvature = 0.02000000095
+shader_parameter/scanline_density = 800.00003325
+shader_parameter/scanline_opacity = 0.2000000095
+
+[node name="RaceTrack" type="Node2D" unique_id=1260760761]
+script = ExtResource("1_uw2il")
+
+[node name="MainCamera" type="Camera2D" parent="." unique_id=1993860027]
+position = Vector2(400, 200)
+script = ExtResource("2_nj26d")
+
+[node name="Horse1" type="Node2D" parent="." unique_id=1374397633 groups=["horses"]]
+scale = Vector2(1.8, 1.646)
+script = ExtResource("3_p6qvv")
+body_color = Color(0.5067702, 0.43336138, 0.42152184, 1)
+head_color = Color(0.62294275, 0.55247426, 0.5320982, 1)
+
+[node name="Horse2" type="Node2D" parent="." unique_id=499729476 groups=["horses"]]
+scale = Vector2(1.8, 1.646)
+script = ExtResource("3_p6qvv")
+horse_index = 1
+body_color = Color(0.6748926, 0.3461459, 0.2112951, 1)
+head_color = Color(0.8237471, 0.40681982, 0.28738555, 1)
+
+[node name="Horse3" type="Node2D" parent="." unique_id=1622053309 groups=["horses"]]
+scale = Vector2(1.8, 1.646)
+script = ExtResource("3_p6qvv")
+horse_index = 2
+body_color = Color(0.55534035, 0.42396054, 0.2322444, 1)
+head_color = Color(0.46645457, 0.32584962, 0.077992104, 1)
+
+[node name="Horse4" type="Node2D" parent="." unique_id=506939728 groups=["horses"]]
+scale = Vector2(1.8, 1.646)
+script = ExtResource("3_p6qvv")
+horse_index = 3
+body_color = Color(0.8929836, 0.6114065, 0.61005443, 1)
+head_color = Color(0.804032, 0.44834054, 0.49667072, 1)
+
+[node name="Horse5" type="Node2D" parent="." unique_id=849311903 groups=["horses"]]
+scale = Vector2(1.8, 1.646)
+script = ExtResource("3_p6qvv")
+horse_index = 4
+body_color = Color(0.48382783, 0.43968746, 0.41063783, 1)
+head_color = Color(0.4283772, 0.33494243, 0.25828648, 1)
+
+[node name="Horse6" type="Node2D" parent="." unique_id=1700341331 groups=["horses"]]
+scale = Vector2(1.8, 1.646)
+script = ExtResource("3_p6qvv")
+horse_index = 5
+body_color = Color(0.6218913, 0.38770115, 0.10652187, 1)
+head_color = Color(0.50141793, 0.30289337, 0.010196595, 1)
+
+[node name="Horse7" type="Node2D" parent="." unique_id=160924305 groups=["horses"]]
+scale = Vector2(1.8, 1.646)
+script = ExtResource("3_p6qvv")
+horse_index = 6
+body_color = Color(0.3634617, 0.22701389, 0.061240345, 1)
+head_color = Color(0.44510126, 0.26668862, 0.007988117, 1)
+
+[node name="Horse8" type="Node2D" parent="." unique_id=1194424406 groups=["horses"]]
+scale = Vector2(1.8, 1.646)
+script = ExtResource("3_p6qvv")
+horse_index = 7
+body_color = Color(0.49114883, 0.40553287, 0.13520998, 1)
+head_color = Color(0.43530947, 0.33893013, 0.13321888, 1)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1773580861]
+environment = SubResource("Environment_ilbxy")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1575339219]
+script = ExtResource("4_ilbxy")
+
+[node name="UI" type="MarginContainer" parent="HUD" unique_id=139055118]
+offset_right = 4.0
+offset_bottom = 23.0
+scale = Vector2(1.5, 1.5)
+mouse_filter = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="KarmaBar" type="ProgressBar" parent="HUD/UI" unique_id=216507865]
+layout_mode = 2
+size_flags_vertical = 1
+show_percentage = false
+
+[node name="KarmaLabel" type="Label" parent="HUD/UI" unique_id=1511082138]
+layout_mode = 2
+
+[node name="CountdownLabel" type="Label" parent="HUD" unique_id=432538287]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -11.5
+offset_right = 20.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(3, 3)
+metadata/_edit_use_anchors_ = true
+
+[node name="WinOverlay" type="ColorRect" parent="HUD" unique_id=1748637861]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_top = -174.0
+offset_bottom = -174.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="WinnerText" type="Label" parent="HUD/WinOverlay" unique_id=403967920]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+scale = Vector2(2, 2)
+
+[node name="RestartButton" type="Button" parent="HUD/WinOverlay" unique_id=1770094665]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = 150.0
+offset_right = 75.0
+offset_bottom = 181.0
+grow_vertical = 0
+scale = Vector2(2, 2)
+text = "RESTART"
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1347420349]
+layer = 10
+
+[node name="CrtFilter" type="ColorRect" parent="CanvasLayer" unique_id=985586538]
+material = SubResource("ShaderMaterial_0vvgo")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[connection signal="pressed" from="HUD/WinOverlay/RestartButton" to="HUD" method="_on_restart_button_pressed"]
