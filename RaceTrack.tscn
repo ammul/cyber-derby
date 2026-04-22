@@ -30,7 +30,11 @@ void fragment() {
     // 1. Bildschirmkrümmung (Fisheye-Effekt)
     // Wir berechnen die Verschiebung basierend auf der Entfernung zur Mitte
     vec2 centered_uv = uv * 2.0 - 1.0;
-    float r2 = dot(centered_uv, centered_uv);
+    // Compute radial distance in pixel space so the barrel is circular, not elliptical.
+    // SCREEN_PIXEL_SIZE = vec2(1/w, 1/h), so y/x = w/h = aspect ratio.
+    float aspect = SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
+    vec2 pixel_cc = vec2(centered_uv.x * aspect, centered_uv.y);
+    float r2 = dot(pixel_cc, pixel_cc);
     vec2 offset = centered_uv * r2 * curvature;
     uv += offset;
     
