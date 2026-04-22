@@ -18,7 +18,33 @@ env:
   GODOT_VERSION: "4.6"
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot binary
+        uses: actions/cache@v4
+        id: cache-godot-bin
+        with:
+          path: godot
+          key: godot-bin-${{ env.GODOT_VERSION }}
+
+      - name: Download Godot
+        if: steps.cache-godot-bin.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          unzip -q Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.zip
+          mv Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64 godot
+          chmod +x godot
+
+      - name: Run GUT tests
+        run: |
+          ./godot --headless -d -s addons/gut/gut_cmdln.gd \
+            -gdir=res://tests/ -gprefix=test_ -gexit -glog=1
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

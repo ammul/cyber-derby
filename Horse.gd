@@ -1,299 +1,310 @@
 extends Node2D
 
-@export var is_npc: bool = true 
-var decision_timer: float = 0.0
+signal horse_finished(horse_index: int, karma_score: float)
 
-@export var repulsion_radius: float = 40.0 
-@export var repulsion_strength: float = 150.0 
-
+@export var is_npc: bool = true
 @export var horse_index: int = 0
-@onready var lane_index: int = horse_index
-@export var body_color = Color(0.6, 0.4, 0.2) 
-@export var head_color = Color(0.5, 0.3, 0.1) 
-@export var base_speed: float = 110.0
+@export var body_color: Color = Color(0.6, 0.4, 0.2)
+@export var head_color: Color = Color(0.5, 0.3, 0.1)
+@export var base_speed: float = GameConfig.BASE_SPEED
+@export var repulsion_radius: float = GameConfig.REPULSION_RADIUS
+@export var repulsion_strength: float = GameConfig.REPULSION_STRENGTH
 
-@onready var track = $".."
+@onready var lane_index: int = horse_index
+@onready var track: RaceTrack = $".."
 
 var has_finished: bool = false
 var speed_modifier: float = 1.0
 var animation_time: float = 0.0
 
-# Dynamik-Variablen
-var noise_offset: float = randf() * 100.0 
-var slipstream_bonus: float = 0.0          
-var catch_up_mult: float = 1.0            
-var target_mod_vis: float = 1.0           
+var noise_offset: float = randf() * 100.0
+var slipstream_bonus: float = 0.0
+var catch_up_mult: float = 1.0
+var target_mod_vis: float = 1.0
 
 var lightning_timer: float = 0.0
 var is_shocked: bool = false
 
+var _horses_cache: Array = []
+var _decision_timer: float = 0.0
 
-func _ready():
-	add_to_group("horses")
+
+func _ready() -> void:
+	add_to_group(GameConfig.GROUP_HORSES)
 	if track:
-		position.x = track.start_line_x - 30
-		position.y = lane_index * track.cell_size + (track.cell_size / 2)
+		position.x = GameConfig.START_LINE_X - 30
+		position.y = lane_index * GameConfig.CELL_SIZE + (GameConfig.CELL_SIZE / 2.0)
+	call_deferred("_init_horses_cache")
 
 
-func get_struck_by_lightning():
+func _init_horses_cache() -> void:
+	_horses_cache = get_tree().get_nodes_in_group(GameConfig.GROUP_HORSES)
+
+
+func get_struck_by_lightning() -> void:
 	is_shocked = true
-	lightning_timer = 2.0 
-	speed_modifier = 0.1 
-	modulate = Color(10, 10, 10) 
-	await get_tree().create_timer(0.1).timeout
-	modulate = Color(1, 1, 1) 
+	lightning_timer = GameConfig.LIGHTNING_DURATION
+	speed_modifier = GameConfig.LIGHTNING_SPEED_MOD
+	modulate = Color(10, 10, 10)
+	await get_tree().create_timer(GameConfig.LIGHTNING_FLASH_DUR).timeout
+	modulate = Color(1, 1, 1)
 
 
-func _process(delta):
-	if not track or track.is_race_over: return
-	
+func _process(delta: float) -> void:
+	if not track or track.is_race_over:
+		return
 	if not track.race_started:
-		animation_time += delta * 5.0 
+		animation_time += delta * GameConfig.PRE_RACE_ANIM_SPEED
 		_apply_visual_smoothing()
 		queue_redraw()
-		return 
+		return
 
 	_check_tiles()
-
-	var flavor_speed = sin(Time.get_ticks_msec() * 0.001 + noise_offset) * 15.0
-	_calculate_dynamics()
-	var total_speed = (base_speed + flavor_speed) * speed_modifier * catch_up_mult + slipstream_bonus
-	total_speed = max(10.0, total_speed)
-	
-	position.x += total_speed * delta
-	animation_time += delta * (total_speed * 0.05)
-
+	_update_movement(delta)
 	_apply_visual_smoothing()
-	_handle_npc_tactics(delta) # Pass delta here
-	
-	if is_shocked:
-		lightning_timer -= delta
-		if lightning_timer <= 0:
-			is_shocked = false
-			speed_modifier = 1.0 
-
-	if position.x >= track.finish_line_column * track.cell_size and not has_finished:
-		has_finished = true
-		_celebrate_win()
-		
+	_handle_lightning_timer(delta)
+	_check_finish_line()
+	if is_npc:
+		_handle_npc_tactics(delta)
 	_handle_repulsion(delta)
 	queue_redraw()
 
 
-func _calculate_dynamics():
-	var horses = get_tree().get_nodes_in_group("horses")
-	if horses.is_empty(): return
-	
-	var lead_x = 0.0
-	for h in horses: lead_x = max(lead_x, h.position.x)
-	var dist_to_lead = lead_x - position.x
-	catch_up_mult = 1.0 + clamp(dist_to_lead / 1500.0, 0.0, 0.3) 
+func _update_movement(delta: float) -> void:
+	var flavor_speed := sin(Time.get_ticks_msec() * GameConfig.FLAVOR_FREQUENCY + noise_offset) * GameConfig.FLAVOR_AMPLITUDE
+	_calculate_dynamics()
+	var total_speed := (base_speed + flavor_speed) * speed_modifier * catch_up_mult + slipstream_bonus
+	total_speed = maxf(GameConfig.MIN_SPEED, total_speed)
+	position.x += total_speed * delta
+	animation_time += delta * (total_speed * GameConfig.ANIM_SPEED_SCALE)
+
+
+func _handle_lightning_timer(delta: float) -> void:
+	if not is_shocked:
+		return
+	lightning_timer -= delta
+	if lightning_timer <= 0.0:
+		is_shocked = false
+		speed_modifier = 1.0
+
+
+func _check_finish_line() -> void:
+	if has_finished:
+		return
+	if position.x >= GameConfig.FINISH_LINE_COL * GameConfig.CELL_SIZE:
+		has_finished = true
+		horse_finished.emit(horse_index, track.karma_points)
+
+
+func _calculate_dynamics() -> void:
+	if _horses_cache.is_empty():
+		return
+	var lead_x := 0.0
+	for h: Node2D in _horses_cache:
+		lead_x = maxf(lead_x, h.position.x)
+	var dist_to_lead := lead_x - position.x
+	catch_up_mult = 1.0 + clamp(dist_to_lead / GameConfig.CATCHUP_DIST_THRESHOLD, 0.0, GameConfig.CATCHUP_MAX_MULT)
 
 	slipstream_bonus = 0.0
-	target_mod_vis = 1.0 
-	
-	for other in horses:
-		if other == self: continue
-		var x_dist = other.position.x - self.position.x
-		if other.lane_index == self.lane_index and x_dist > 0 and x_dist < 180:
-			slipstream_bonus = (180.0 - x_dist) * 0.9
-			target_mod_vis = 1.5 
-			break 
+	target_mod_vis = 1.0
+	for other in _horses_cache:
+		if other == self:
+			continue
+		var x_dist: float = other.position.x - position.x
+		if other.lane_index == lane_index and x_dist > 0.0 and x_dist < GameConfig.SLIPSTREAM_DIST:
+			slipstream_bonus = (GameConfig.SLIPSTREAM_DIST - x_dist) * GameConfig.SLIPSTREAM_BONUS_MULT
+			target_mod_vis = GameConfig.SLIPSTREAM_VIS_BOOST
+			break
 
 
-func _handle_npc_tactics(delta):
-	if not is_npc or speed_modifier < 0.9: return 
-	
-	decision_timer -= delta
-	if decision_timer > 0: return # Only think every so often
-	
-	decision_timer = randf_range(0.2, 0.5) # Think more frequently than before
-	
-	var cell_x = int(position.x / track.cell_size)
-	var look_ahead = 4 # Look ahead 4 tiles
-	
-	# 1. Collision avoidance (Highest Priority)
-	var blocked = false
-	for other in get_tree().get_nodes_in_group("horses"):
-		if other == self: continue
-		var x_dist = other.position.x - self.position.x
-		if other.lane_index == self.lane_index and x_dist > 0 and x_dist < 60:
-			blocked = true
-			_try_switch_lane() # Try to get out of the way immediately
-			return # Stop thinking for this cycle
-			
-	# 2. Evaluate Lanes
-	var best_lane = lane_index
-	var best_score = -9999.0
-	
-	# We'll check the current lane, the one above, and the one below
-	var lanes_to_check = [lane_index]
-	if lane_index > 0: lanes_to_check.append(lane_index - 1)
-	if lane_index < track.grid_height - 1: lanes_to_check.append(lane_index + 1)
-	
-	for l in lanes_to_check:
-		var score = 0.0
-		
-		# Base preference for staying in current lane to avoid jitter
-		if l == lane_index: score += 1.0 
-		
-		# Check real tiles ahead
-		for i in range(1, look_ahead + 1):
-			var check_x = cell_x + i
-			if check_x < track.grid_width:
-				var tile = track.grid[check_x][l]
-				# Closer tiles have a stronger impact
-				var weight = float(look_ahead - i + 1) 
-				if tile == track.Tile.BOOST:
-					score += 5.0 * weight
-				elif tile == track.Tile.SLOW:
-					score -= 8.0 * weight # Strongly avoid slows
-					
-		# Check preview tiles (Lower priority than real tiles)
-		if track.is_aiming and track.aim_lane == l:
-			# Only care if the preview is roughly in front of us
-			var preview_x = int((get_viewport().get_camera_2d().get_screen_center_position().x + (get_viewport_rect().size.x / 2.0) - track.placement_offset) / track.cell_size)
-			if preview_x > cell_x and preview_x <= cell_x + look_ahead + 2:
-				if track.aim_type == track.Tile.BOOST:
-					score += 3.0
-				elif track.aim_type == track.Tile.SLOW:
-					score -= 4.0
+func _handle_npc_tactics(delta: float) -> void:
+	if speed_modifier < GameConfig.NPC_SPEED_MOD_MIN:
+		return
+	_decision_timer -= delta
+	if _decision_timer > 0.0:
+		return
+	_decision_timer = randf_range(GameConfig.NPC_DECISION_MIN, GameConfig.NPC_DECISION_MAX)
 
+	var cell_x := int(position.x / GameConfig.CELL_SIZE)
+
+	# Collision avoidance — highest priority
+	for other in _horses_cache:
+		if other == self:
+			continue
+		var x_dist: float = other.position.x - position.x
+		if other.lane_index == lane_index and x_dist > 0.0 and x_dist < GameConfig.NPC_COLLISION_DIST:
+			_try_switch_lane()
+			return
+
+	# Lane scoring
+	var best_lane := lane_index
+	var best_score := -9999.0
+	var lanes_to_check := [lane_index]
+	if lane_index > 0:
+		lanes_to_check.append(lane_index - 1)
+	if lane_index < GameConfig.GRID_HEIGHT - 1:
+		lanes_to_check.append(lane_index + 1)
+
+	for l: int in lanes_to_check:
+		var score := _score_lane(l, cell_x)
 		if score > best_score:
 			best_score = score
 			best_lane = l
-			
-	# 3. Apply Decision
+
 	if best_lane != lane_index:
 		_switch_to_lane(best_lane)
 
 
-func _try_switch_lane():
-	# Helper to switch to an adjacent valid lane
-	var possible_lanes = []
-	if lane_index > 0: possible_lanes.append(lane_index - 1)
-	if lane_index < track.grid_height - 1: possible_lanes.append(lane_index + 1)
-	
-	if possible_lanes.size() > 0:
-		_switch_to_lane(possible_lanes[randi() % possible_lanes.size()])
+func _score_lane(lane: int, cell_x: int) -> float:
+	var score := GameConfig.LANE_STAY_BONUS if lane == lane_index else 0.0
 
-func _switch_to_lane(new_lane):
-	if new_lane >= 0 and new_lane < track.grid_height:
+	for i in range(1, GameConfig.NPC_LOOK_AHEAD + 1):
+		var check_x := cell_x + i
+		if check_x < GameConfig.GRID_WIDTH:
+			var tile = track.grid[check_x][lane]
+			var weight := float(GameConfig.NPC_LOOK_AHEAD - i + 1)
+			if tile == RaceTrack.Tile.BOOST:
+				score += GameConfig.BOOST_LANE_WEIGHT * weight
+			elif tile == RaceTrack.Tile.SLOW:
+				score -= GameConfig.SLOW_LANE_WEIGHT * weight
+
+	if track.is_aiming and track.aim_lane == lane:
+		var cam := get_viewport().get_camera_2d()
+		if cam:
+			var preview_x := int((cam.get_screen_center_position().x + get_viewport_rect().size.x / 2.0 - GameConfig.PLACEMENT_OFFSET) / GameConfig.CELL_SIZE)
+			if preview_x > cell_x and preview_x <= cell_x + GameConfig.NPC_LOOK_AHEAD + 2:
+				if track.aim_type == RaceTrack.Tile.BOOST:
+					score += GameConfig.PREVIEW_BOOST_WEIGHT
+				elif track.aim_type == RaceTrack.Tile.SLOW:
+					score -= GameConfig.PREVIEW_SLOW_WEIGHT
+
+	return score
+
+
+func _try_switch_lane() -> void:
+	var options: Array = []
+	if lane_index > 0:
+		options.append(lane_index - 1)
+	if lane_index < GameConfig.GRID_HEIGHT - 1:
+		options.append(lane_index + 1)
+	if options.size() > 0:
+		_switch_to_lane(options[randi() % options.size()])
+
+
+func _switch_to_lane(new_lane: int) -> void:
+	if new_lane >= 0 and new_lane < GameConfig.GRID_HEIGHT:
 		lane_index = new_lane
 
-func _apply_visual_smoothing():
+
+func _apply_visual_smoothing() -> void:
 	if track:
-		var target_y = float(lane_index * track.cell_size + (track.cell_size / 2.0))
-		position.y = lerp(position.y, target_y, 0.1)
-	
-	modulate.r = lerp(modulate.r, 1.0, 0.1)
-	modulate.g = lerp(modulate.g, 1.0, 0.1)
-	modulate.b = lerp(modulate.b, float(target_mod_vis), 0.1) 
-
-func _check_tiles():
-	if is_shocked: return
-	
-	if track:
-		var cell_x = int(position.x / track.cell_size)
-		if cell_x >= 0 and cell_x < track.grid_width:
-			var current_tile = track.grid[cell_x][lane_index]
-			if current_tile == track.Tile.BOOST:
-				speed_modifier = 1.5 
-			elif current_tile == track.Tile.SLOW:
-				speed_modifier = 0.5 
-			else:
-				speed_modifier = 1.0 
-
-func _handle_repulsion(delta):
-	for other in get_tree().get_nodes_in_group("horses"):
-		if other == self: continue
-		var diff = position - other.position
-		var distance = diff.length()
-		if distance < repulsion_radius:
-			var push_force = diff.normalized() * (repulsion_radius - distance) * repulsion_strength
-			position += push_force * delta
-	
-
-func _celebrate_win():
-	track.is_race_over = true
-	track.emit_signal("race_finished", horse_index, track.karma_points)
+		var target_y := lane_index * GameConfig.CELL_SIZE + (GameConfig.CELL_SIZE / 2.0)
+		position.y = lerp(position.y, target_y, GameConfig.VISUAL_LERP_SPEED)
+	modulate = modulate.lerp(Color(1.0, 1.0, target_mod_vis, 1.0), GameConfig.VISUAL_LERP_SPEED)
 
 
-func _draw():
-	var bob = sin(animation_time) * 3.0
-	var leg_swing = sin(animation_time) * 6.0
-	
-	var draw_body_color = body_color
-	var draw_head_color = head_color
-	var draw_tail_color = head_color
-	var draw_saddle_color = Color(1, 1, 1, 1)
+func _check_tiles() -> void:
+	if is_shocked or not track:
+		return
+	var cell_x := int(position.x / GameConfig.CELL_SIZE)
+	if cell_x >= 0 and cell_x < GameConfig.GRID_WIDTH:
+		var tile = track.grid[cell_x][lane_index]
+		if tile == RaceTrack.Tile.BOOST:
+			speed_modifier = GameConfig.BOOST_MODIFIER
+		elif tile == RaceTrack.Tile.SLOW:
+			speed_modifier = GameConfig.SLOW_MODIFIER
+		else:
+			speed_modifier = 1.0
 
-	var draw_diff_color = Color(0,0, 0, 0)
+
+func _handle_repulsion(delta: float) -> void:
+	for other: Node2D in _horses_cache:
+		if other == self:
+			continue
+		var diff := position - other.position
+		var distance := diff.length()
+		if distance < repulsion_radius and distance > 0.0:
+			position += diff.normalized() * (repulsion_radius - distance) * repulsion_strength * delta
+
+
+func _draw() -> void:
+	var bob := sin(animation_time) * GameConfig.BOB_AMPLITUDE
+	var leg_swing := sin(animation_time) * GameConfig.LEG_AMPLITUDE
+	_draw_body(bob, leg_swing)
+	_draw_selection_indicator()
+	_draw_lightning_effect()
+	_draw_slipstream()
+
+
+func _draw_body(bob: float, leg_swing: float) -> void:
+	var tint := Color(0, 0, 0, 0)
 	if speed_modifier > 1.2:
-		draw_diff_color = Color(4, 4, 4, 0.5) 
-	elif speed_modifier < 1:
-		draw_diff_color = Color(4, 4, 0, 0.5) 
+		tint = GameConfig.COLOR_BOOST_TINT
+	elif speed_modifier < 1.0:
+		tint = GameConfig.COLOR_SLOW_TINT
 
-	draw_body_color = draw_body_color + draw_diff_color
-	draw_head_color = draw_head_color + draw_diff_color
-	draw_tail_color = draw_tail_color + draw_diff_color
+	var draw_body_color := body_color + tint
+	var draw_head_color := head_color + tint
+	var draw_tail_color := head_color + tint
+	var draw_saddle_color := Color(1, 1, 1, 1)
 
-	draw_line(Vector2(-10, -10 + bob), Vector2(-16, -4 + sin(animation_time*0.8)*7), draw_tail_color, 3.0)
-	
+	draw_line(Vector2(-10, -10 + bob), Vector2(-16, -4 + sin(animation_time * GameConfig.TAIL_FREQ) * GameConfig.TAIL_AMPLITUDE), draw_tail_color, 3.0)
+
 	draw_line(Vector2(-7, -5 + bob), Vector2(-7 + leg_swing, 8), draw_body_color, 3.0)
 	draw_line(Vector2(-4, -5 + bob), Vector2(-4 - leg_swing, 8), draw_body_color, 3.0)
-	
+
 	draw_rect(Rect2(-12, -15 + bob, 22, 12), draw_body_color)
-	draw_rect(Rect2(-4, -15 + bob, 8, 4), draw_saddle_color) 
-	
-	var default_font = ThemeDB.get_fallback_font()
-	var font_size = 10 
-	var saddle_pos = Vector2(-5, -16 + bob)
-	var saddle_size = Vector2(10, 10)
+	draw_rect(Rect2(-4, -15 + bob, 8, 4), draw_saddle_color)
+
+	var default_font := ThemeDB.get_fallback_font()
+	var saddle_pos := Vector2(-5, -16 + bob)
+	var saddle_size := Vector2(10, 10)
 	draw_rect(Rect2(saddle_pos, saddle_size), draw_saddle_color)
-	draw_string(default_font, saddle_pos + Vector2(0, 8), str(horse_index + 1), HORIZONTAL_ALIGNMENT_CENTER, saddle_size.x, font_size, Color(0, 0, 0))
-	
+	draw_string(default_font, saddle_pos + Vector2(0, 8), str(horse_index + 1), HORIZONTAL_ALIGNMENT_CENTER, saddle_size.x, GameConfig.SADDLE_FONT_SIZE, Color(0, 0, 0))
+
 	draw_line(Vector2(5, -5 + bob), Vector2(5 + leg_swing, 8), draw_body_color, 3.0)
 	draw_line(Vector2(8, -5 + bob), Vector2(8 - leg_swing, 8), draw_body_color, 3.0)
-	
-	draw_line(Vector2(10, -10 + bob), Vector2(15, -20 + bob), draw_body_color, 5.0) 
-	draw_rect(Rect2(13, -24 + bob, 10, 7), draw_head_color) 
-	draw_rect(Rect2(14, -26 + bob, 2, 3), draw_head_color) 
 
-	if track and track.selected_horse_index == horse_index:
-		var wobble = sin(animation_time * 1.0) * 5.0
-		var top_y = -30.0 + wobble 
-		var p1 = Vector2(-8, top_y)          
-		var p2 = Vector2(8, top_y)           
-		var p3 = Vector2(0, top_y + 10.0)     
-		var triangle_points = PackedVector2Array([p1, p2, p3])
-		draw_colored_polygon(triangle_points, Color(0, 4, 0))
-		draw_polyline(PackedVector2Array([p1, p2, p3, p1]), Color(1, 1, 1), 2.0)
+	draw_line(Vector2(10, -10 + bob), Vector2(15, -20 + bob), draw_body_color, 5.0)
+	draw_rect(Rect2(13, -24 + bob, 10, 7), draw_head_color)
+	draw_rect(Rect2(14, -26 + bob, 2, 3), draw_head_color)
 
-	if is_shocked:
-		if randf() > 0.8:
-			var zap_color = Color(3, 3, 0, 0.6) 
-			var points = PackedVector2Array()
-			var current_y = -500.0 
-			var segments = 6
-			points.append(Vector2(randf_range(-50, 50), current_y))
-			for i in range(1, segments):
-				var progress = float(i) / segments
-				var x_offset = randf_range(-40, 40)
-				points.append(Vector2(x_offset, current_y * (1.0 - progress)))
-			points.append(Vector2(0, 0)) 
-			draw_polyline(points, zap_color, 3.0) 
-			draw_polyline(points, Color(2, 2, 10), 1.0) 
 
-	if slipstream_bonus > 20.0 and not has_finished:
-		var line_color = Color(1, 1, 5, 0.5) 
-		var line_width = 1.5
-		for i in range(3):
-			var time_off = animation_time * 15.0 + (i * 2.1)
-			var start_x = -15.0 - (fmod(time_off, 40.0))
-			var line_y = -10.0 + (i * 8.0) + sin(time_off) * 2.0
-			var line_len = 25.0 + (slipstream_bonus * 0.2)
-			var p1 = Vector2(start_x, line_y)
-			var p2 = Vector2(start_x - line_len, line_y)
-			draw_polyline(PackedVector2Array([p1, p2]), line_color, line_width)
-			draw_polyline(PackedVector2Array([p1, p2]), Color(2, 2, 10, 0.3), 0.5)
+func _draw_selection_indicator() -> void:
+	if not (track and track.selected_horse_index == horse_index):
+		return
+	var wobble := sin(animation_time * GameConfig.SELECTION_WOBBLE_FREQ) * GameConfig.SELECTION_WOBBLE_AMP
+	var top_y := GameConfig.SELECTION_TOP_Y + wobble
+	var p1 := Vector2(-8, top_y)
+	var p2 := Vector2(8, top_y)
+	var p3 := Vector2(0, top_y + GameConfig.SELECTION_TRI_H)
+	draw_colored_polygon(PackedVector2Array([p1, p2, p3]), GameConfig.COLOR_SELECTION)
+	draw_polyline(PackedVector2Array([p1, p2, p3, p1]), Color(1, 1, 1), 2.0)
+
+
+func _draw_lightning_effect() -> void:
+	if not is_shocked or randf() <= GameConfig.LIGHTNING_THRESHOLD:
+		return
+	var points := PackedVector2Array()
+	var current_y := GameConfig.LIGHTNING_START_Y
+	points.append(Vector2(randf_range(-50, 50), current_y))
+	for i in range(1, GameConfig.LIGHTNING_SEGMENTS):
+		var progress := float(i) / GameConfig.LIGHTNING_SEGMENTS
+		points.append(Vector2(randf_range(-40, 40), current_y * (1.0 - progress)))
+	points.append(Vector2(0, 0))
+	draw_polyline(points, GameConfig.COLOR_LIGHTNING_ZAP, 3.0)
+	draw_polyline(points, GameConfig.COLOR_LIGHTNING_CORE, 1.0)
+
+
+func _draw_slipstream() -> void:
+	if slipstream_bonus <= GameConfig.SLIPSTREAM_DRAW_THRESH or has_finished:
+		return
+	for i in range(GameConfig.SLIPSTREAM_LINE_COUNT):
+		var time_off := animation_time * GameConfig.SLIPSTREAM_ANIM_SPEED + (i * GameConfig.SLIPSTREAM_ANIM_PHASE)
+		var start_x := -15.0 - fmod(time_off, GameConfig.SLIPSTREAM_SCROLL_MOD)
+		var line_y := -10.0 + (i * 8.0) + sin(time_off) * 2.0
+		var line_len := GameConfig.SLIPSTREAM_LEN_BASE + (slipstream_bonus * GameConfig.SLIPSTREAM_LEN_BONUS)
+		var p1 := Vector2(start_x, line_y)
+		var p2 := Vector2(start_x - line_len, line_y)
+		draw_polyline(PackedVector2Array([p1, p2]), GameConfig.COLOR_SLIPSTREAM, GameConfig.SLIPSTREAM_LINE_WIDTH)
+		draw_polyline(PackedVector2Array([p1, p2]), GameConfig.COLOR_SLIPSTREAM_CORE, 0.5)

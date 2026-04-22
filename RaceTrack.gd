@@ -1,207 +1,185 @@
+class_name RaceTrack
 extends Node2D
 
-signal race_finished(winner_name, karma_score)
+signal race_finished(winner_index: int, karma_score: float)
+signal selection_done
 
-@export var finish_line_column: int = 100 # Wo das Rennen endet
-@export var grid_width: int = 360
-@export var grid_height: int = 8
-@export var cell_size: int = 60
-@export var placement_offset: float = 140.0 # Abstand vom rechten Rand in Pixeln
+enum Tile { EMPTY, BOOST, SLOW }
+
+var grid: Array = []
+var is_race_over: bool = false
+var race_started: bool = false
+var karma_points: float = 0.0
 
 var is_aiming: bool = false
 var aim_lane: int = 0
-var aim_type = Tile.EMPTY
+var aim_type: Tile = Tile.EMPTY
 
-var karma_points: float = 0.0
+var selected_horse_index: int = -1
+var is_selecting: bool = true
 
-enum Tile { EMPTY, BOOST, SLOW }
-var grid = []
-var is_race_over: bool = false
 
-@export var start_line_x: float = 60 # Pixel-Position der Startlinie
-var race_started: bool = false # Das "Go!"-Signal
-
-func _ready():
-	add_to_group("track_group")
+func _ready() -> void:
+	add_to_group(GameConfig.GROUP_TRACK)
 	_generate_track()
-# Wir starten das Rennen nicht sofort, sondern lassen das HUD den Countdown regeln
+	for horse in get_tree().get_nodes_in_group(GameConfig.GROUP_HORSES):
+		horse.horse_finished.connect(_on_horse_finished)
 
-func _generate_track():
+
+func _generate_track() -> void:
 	grid.clear()
-	for x in range(grid_width):
-		var row = []
-		for y in range(grid_height):
-			row.append(Tile.EMPTY)
-		grid.append(row)
-		
-	_place_random_tiles(Tile.BOOST, 3)
-	_place_random_tiles(Tile.SLOW, 3)
+	for x in range(GameConfig.GRID_WIDTH):
+		var col: Array = []
+		for y in range(GameConfig.GRID_HEIGHT):
+			col.append(Tile.EMPTY)
+		grid.append(col)
+	_place_random_tiles(Tile.BOOST, GameConfig.INITIAL_BOOST_TILES)
+	_place_random_tiles(Tile.SLOW, GameConfig.INITIAL_SLOW_TILES)
 
-func _place_random_tiles(type, count):
-	var placed = 0
+
+func _place_random_tiles(type: Tile, count: int) -> void:
+	var placed := 0
 	while placed < count:
-		var rx = randi_range(6, 12)
-		var ry = randi_range(0, grid_height - 1)
+		var rx := randi_range(GameConfig.TILE_SPAWN_X_MIN, GameConfig.TILE_SPAWN_X_MAX)
+		var ry := randi_range(0, GameConfig.GRID_HEIGHT - 1)
 		if grid[rx][ry] == Tile.EMPTY:
 			grid[rx][ry] = type
 			placed += 1
 
-var selected_horse_index: int = -1 # Welches Pferd muss gewinnen?
-var is_selecting: bool = true     # Sind wir gerade in der Auswahlphase?
 
-# Signal für das HUD, wenn die Auswahl fertig ist
-signal selection_done 
-
-
-
-func _input(event):
-	# Wenn wir noch in der Auswahlphase sind, ignorieren wir normales Malen
+func _input(event: InputEvent) -> void:
 	if is_selecting:
-		if event is InputEventMouseButton and event.pressed:
-			_check_horse_selection(get_global_mouse_position())
+		_handle_selection_click(event)
 		return
-		
-	if event is InputEventMouseButton and not is_race_over:
-		var viewport_size = get_viewport_rect().size
-		var mouse_pos = get_viewport().get_mouse_position()
-		# PHASE 1: DRÜCKEN (Start der Vorschau)
+	if not is_race_over:
+		_handle_aiming(event)
+
+
+func _handle_selection_click(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		_check_horse_selection(get_global_mouse_position())
+
+
+func _handle_aiming(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
 		if event.pressed:
 			is_aiming = true
-			# Typ bestimmen: Links = SLOW, Rechts = BOOST
-			if mouse_pos.x < viewport_size.x / 2.0:
-				aim_type = Tile.SLOW
-			else:
-				aim_type = Tile.BOOST
-			
+			var mouse_x := get_viewport().get_mouse_position().x
+			aim_type = Tile.SLOW if mouse_x < get_viewport_rect().size.x / 2.0 else Tile.BOOST
 			_update_aim_lane()
-
-		# PHASE 3: LOSLASSEN (Platzieren)
-		elif not event.pressed and is_aiming:
+		elif is_aiming:
 			_place_selected_tile()
 			is_aiming = false
 			queue_redraw()
-
-	# PHASE 2: BEWEGEN / SWIPEN (Vorschau aktualisieren)
 	if event is InputEventMouseMotion and is_aiming:
 		_update_aim_lane()
 
-func _update_aim_lane():
-	var global_mouse = get_global_mouse_position()
-	aim_lane = clamp(int(global_mouse.y / cell_size), 0, grid_height - 1)
+
+func _update_aim_lane() -> void:
+	aim_lane = clamp(int(get_global_mouse_position().y / GameConfig.CELL_SIZE), 0, GameConfig.GRID_HEIGHT - 1)
 	queue_redraw()
 
-func _place_selected_tile():
-	var viewport_size = get_viewport_rect().size
-	var cam = get_viewport().get_camera_2d()
-	if cam:
-		var right_edge_global = cam.get_screen_center_position().x + (viewport_size.x / 2.0)
-		var target_x_global = right_edge_global - placement_offset
-		var gx = int(target_x_global / cell_size)
-		
-		if gx >= 0 and gx < grid_width:
-			grid[gx][aim_lane] = aim_type
-			# Karma erst beim Platzieren berechnen
-			karma_points += 10 if aim_type == Tile.BOOST else 5
+
+func _get_placement_x_global() -> float:
+	var cam := get_viewport().get_camera_2d()
+	if not cam:
+		return -1.0
+	var right_edge := cam.get_screen_center_position().x + (get_viewport_rect().size.x / 2.0)
+	return right_edge - GameConfig.PLACEMENT_OFFSET
 
 
-func _check_horse_selection(m_pos):
-	for horse in get_tree().get_nodes_in_group("horses"):
-		# Prüfe, ob die Maus in der Nähe eines Pferdes geklickt hat
-		if horse.global_position.distance_to(m_pos) < 40:
+func _place_selected_tile() -> void:
+	var place_x := _get_placement_x_global()
+	if place_x < 0.0:
+		return
+	var gx := int(place_x / GameConfig.CELL_SIZE)
+	if gx >= 0 and gx < GameConfig.GRID_WIDTH:
+		grid[gx][aim_lane] = aim_type
+		karma_points += GameConfig.KARMA_BOOST_PENALTY if aim_type == Tile.BOOST else GameConfig.KARMA_SLOW_PENALTY
+
+
+func _check_horse_selection(m_pos: Vector2) -> void:
+	for horse in get_tree().get_nodes_in_group(GameConfig.GROUP_HORSES):
+		if horse.global_position.distance_to(m_pos) < GameConfig.HORSE_SELECT_RADIUS:
 			selected_horse_index = horse.horse_index
 			is_selecting = false
-			selection_done.emit() # Gib dem HUD Bescheid
+			selection_done.emit()
 			break
 
-func _draw():
-	# Raster-Linien zur Orientierung
-	for y in range(grid_height + 1):
-		draw_line(Vector2(0, y * cell_size), Vector2(grid_width * cell_size, y * cell_size), Color(1, 1, 1, 0.8))
-	
-	# Gezeichnete Tiles
-	for x in range(grid_width):
-		for y in range(grid_height):
-			if grid[x][y] == Tile.BOOST:
-				draw_rect(Rect2(x * cell_size + 2, y * cell_size + 2, cell_size - 4, cell_size - 4), Color(0, 4, 2, 0.3))
-			elif grid[x][y] == Tile.SLOW:
-				draw_rect(Rect2(x * cell_size + 2, y * cell_size + 2, cell_size - 4, cell_size - 4), Color(4, 0, 2, 0.3))
 
-	# Startlinie zeichnen (ein helles Blau oder Weiß)
-	draw_rect(Rect2(start_line_x, 0, 5, grid_height * cell_size), Color(2,2,2,.5))
-
-	# Zeichne die Ziellinie (leuchtendes Weiß/Gelb)
-	var fx = finish_line_column * cell_size
-	draw_rect(Rect2(fx, 0, 20, grid_height * cell_size), Color(0, 6, 0, .5)) # Glühendes Gelb
-
-	# VORSCHAU ZEICHNEN
-	if is_aiming:
-		var viewport_size = get_viewport_rect().size
-		var cam = get_viewport().get_camera_2d()
-		if cam:
-			var right_edge_global = cam.get_screen_center_position().x + (viewport_size.x / 2.0)
-			var line_x = right_edge_global - placement_offset
-			
-			# Position des Vorschau-Rahmens
-			# Wir runden auf das Grid ab, damit es bündig sitzt
-			var rect_x = int(line_x / cell_size) * cell_size
-			var rect_y = aim_lane * cell_size
-			var preview_rect = Rect2(rect_x, rect_y, cell_size, cell_size)
-			
-			# Farbe wählen (Rot für Slow, Cyan für Boost)
-			var preview_color = Color(4, 0, 2) if aim_type == Tile.SLOW else Color(0, 4, 2)
-			
-			# Nur den Rahmen zeichnen (Hohl)
-			# draw_rect(rect, farbe, gefüllt?, breite)
-			draw_rect(preview_rect, preview_color, false, 2.0)
-			
-			# Optional: Ein leichtes Flimmern im Rahmen für den Effekt
-			draw_rect(preview_rect, Color(preview_color.r, preview_color.g, preview_color.b, 0.1), false)
-			
-# KARMA
-
-var karma_threshold: float = 100.0
-
-func _process(delta):
-	# Karma baut sich ganz langsam von selbst ab (Heilung), 
-	# aber Manipulationen erhöhen es viel schneller.
-	karma_points = max(0, karma_points - delta * 2.0)
-	
-	if karma_points >= karma_threshold:
+func _process(delta: float) -> void:
+	karma_points = maxf(0.0, karma_points - delta * GameConfig.KARMA_DECAY_RATE)
+	if karma_points >= GameConfig.KARMA_THRESHOLD:
 		trigger_karma_event()
-		
 	queue_redraw()
 
-func trigger_karma_event():
-	karma_points = 0 # Reset nach dem Event
-	
-	# Beispiel-Effekt: Erzeuge 5 zufällige Sumpf-Felder (SLOW) 
-	# in der Nähe der aktuellen Kameraposition
-	var cam_x = int(get_viewport().get_camera_2d().position.x / cell_size)
-	
-	for i in range(10):
-		var rx = cam_x + 6 + randi_range(0, 20)
-		var ry = randi_range(0, grid_height - 1)
-		if rx < grid_width:
-			grid[rx][ry] = Tile.SLOW
-	
-	var horses = get_tree().get_nodes_in_group("horses")
-	
-	for horse in horses:
-		# Wir suchen genau DEIN ausgewähltes Pferd
+
+func trigger_karma_event() -> void:
+	karma_points = 0.0
+	_spawn_punishment_tiles()
+	for horse in get_tree().get_nodes_in_group(GameConfig.GROUP_HORSES):
 		if horse.horse_index == selected_horse_index:
 			if horse.has_method("get_struck_by_lightning"):
 				horse.get_struck_by_lightning()
-			break # Wir haben unser Ziel gefunden, Schleife beenden
-	
-	# Optional: Bildschirmwackeln (Screen Shake)
+			break
 	_screen_shake()
-	
 	queue_redraw()
 
-func _screen_shake():
-	var cam = get_viewport().get_camera_2d()
-	if cam:
-		var tween = create_tween()
-		tween.tween_property(cam, "offset", Vector2(8, 8), 0.15)
-		tween.tween_property(cam, "offset", Vector2(-8, -8), 0.15)
-		tween.tween_property(cam, "offset", Vector2(0, 0), 0.1)
+
+func _spawn_punishment_tiles() -> void:
+	var cam_x := int(get_viewport().get_camera_2d().position.x / GameConfig.CELL_SIZE)
+	for i in range(GameConfig.KARMA_EVENT_SLOW_COUNT):
+		var rx := cam_x + 6 + randi_range(0, 20)
+		var ry := randi_range(0, GameConfig.GRID_HEIGHT - 1)
+		if rx < GameConfig.GRID_WIDTH:
+			grid[rx][ry] = Tile.SLOW
+
+
+func _screen_shake() -> void:
+	var cam := get_viewport().get_camera_2d()
+	if not cam:
+		return
+	var tween := create_tween()
+	tween.tween_property(cam, "offset", Vector2(GameConfig.SHAKE_OFFSET, GameConfig.SHAKE_OFFSET), GameConfig.SHAKE_DURATION)
+	tween.tween_property(cam, "offset", Vector2(-GameConfig.SHAKE_OFFSET, -GameConfig.SHAKE_OFFSET), GameConfig.SHAKE_DURATION)
+	tween.tween_property(cam, "offset", Vector2.ZERO, GameConfig.SHAKE_RETURN)
+
+
+func _on_horse_finished(horse_index: int, karma_score: float) -> void:
+	if is_race_over:
+		return
+	is_race_over = true
+	race_finished.emit(horse_index, karma_score)
+
+
+func _draw() -> void:
+	for y in range(GameConfig.GRID_HEIGHT + 1):
+		draw_line(
+			Vector2(0, y * GameConfig.CELL_SIZE),
+			Vector2(GameConfig.GRID_WIDTH * GameConfig.CELL_SIZE, y * GameConfig.CELL_SIZE),
+			Color(1, 1, 1, 0.8)
+		)
+
+	for x in range(GameConfig.GRID_WIDTH):
+		for y in range(GameConfig.GRID_HEIGHT):
+			var tile: Tile = grid[x][y]
+			if tile == Tile.BOOST:
+				draw_rect(Rect2(x * GameConfig.CELL_SIZE + 2, y * GameConfig.CELL_SIZE + 2, GameConfig.CELL_SIZE - 4, GameConfig.CELL_SIZE - 4), GameConfig.COLOR_BOOST_TILE)
+			elif tile == Tile.SLOW:
+				draw_rect(Rect2(x * GameConfig.CELL_SIZE + 2, y * GameConfig.CELL_SIZE + 2, GameConfig.CELL_SIZE - 4, GameConfig.CELL_SIZE - 4), GameConfig.COLOR_SLOW_TILE)
+
+	draw_rect(Rect2(GameConfig.START_LINE_X, 0, 5, GameConfig.GRID_HEIGHT * GameConfig.CELL_SIZE), GameConfig.COLOR_START_LINE)
+
+	var fx := GameConfig.FINISH_LINE_COL * GameConfig.CELL_SIZE
+	draw_rect(Rect2(fx, 0, 20, GameConfig.GRID_HEIGHT * GameConfig.CELL_SIZE), GameConfig.COLOR_FINISH_LINE)
+
+	if is_aiming:
+		var line_x := _get_placement_x_global()
+		if line_x < 0.0:
+			return
+		var rect_x := int(line_x / GameConfig.CELL_SIZE) * GameConfig.CELL_SIZE
+		var rect_y := aim_lane * GameConfig.CELL_SIZE
+		var preview_rect := Rect2(rect_x, rect_y, GameConfig.CELL_SIZE, GameConfig.CELL_SIZE)
+		var preview_color := GameConfig.COLOR_SLOW_TILE if aim_type == Tile.SLOW else GameConfig.COLOR_BOOST_TILE
+		draw_rect(preview_rect, preview_color, false, 2.0)
+		draw_rect(preview_rect, Color(preview_color.r, preview_color.g, preview_color.b, 0.1), false)
