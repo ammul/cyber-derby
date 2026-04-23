@@ -1,0 +1,91 @@
+[gd_scene format=3 uid="uid://cm1d9f7y4x0pa"]
+
+[ext_resource type="Script" uid="uid://b3k8nj5qr2vm4" path="res://MainMenu.gd" id="1_mmscr"]
+
+[sub_resource type="Shader" id="Shader_crt"]
+code = "shader_type canvas_item;
+
+uniform sampler2D SCREEN_TEXTURE : hint_screen_texture, filter_linear_mipmap;
+
+uniform float curvature : hint_range(0.0, 0.1) = 0.06;
+uniform float scanline_density : hint_range(100.0, 1000.0) = 1100.0;
+uniform float scanline_opacity : hint_range(0.0, 0.5) = 0.5;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    vec2 centered_uv = uv * 2.0 - 1.0;
+    float aspect = SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
+    vec2 pixel_cc = vec2(centered_uv.x * aspect, centered_uv.y);
+    float r2 = dot(pixel_cc, pixel_cc);
+    vec2 offset = centered_uv * r2 * curvature;
+    uv += offset;
+    float r = texture(SCREEN_TEXTURE, uv + vec2(0.001, 0.0)).r;
+    float g = texture(SCREEN_TEXTURE, uv).g;
+    float b = texture(SCREEN_TEXTURE, uv - vec2(0.001, 0.0)).b;
+    vec3 color = vec3(r, g, b);
+    float scanline = sin(uv.y * scanline_density) * scanline_opacity;
+    color -= scanline;
+    float vignette = uv.x * (1.0 - uv.x) * uv.y * (1.0 - uv.y) * 15.0;
+    color *= pow(vignette, 0.25);
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        COLOR = vec4(0.0, 0.0, 0.0, 1.0);
+    } else {
+        COLOR = vec4(color, 1.0);
+    }
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_crt"]
+shader = SubResource("Shader_crt")
+shader_parameter/curvature = 0.02000000095
+shader_parameter/scanline_density = 800.00003325
+shader_parameter/scanline_opacity = 0.2000000095
+
+[node name="MainMenu" type="Control" unique_id=1731845672]
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_mmscr")
+
+[node name="Background" type="ColorRect" parent="." unique_id=982345612]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.10587203, 0.10587206, 0.10587203, 1)
+
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=1234567890]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer" unique_id=876543210]
+layout_mode = 2
+theme_override_constants/separation = 32
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBox" unique_id=444444444]
+layout_mode = 2
+theme_override_font_sizes/font_size = 64
+horizontal_alignment = 1
+text = "CYBER-DERBY"
+
+[node name="StartButton" type="Button" parent="CenterContainer/VBox" unique_id=555555555]
+layout_mode = 2
+custom_minimum_size = Vector2(300, 60)
+theme_override_font_sizes/font_size = 28
+text = "STARTEN"
+
+[node name="CRTOverlay" type="ColorRect" parent="." unique_id=666666666]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+material = SubResource("ShaderMaterial_crt")
+
+[connection signal="pressed" from="CenterContainer/VBox/StartButton" to="." method="_on_start_button_pressed"]

@@ -1,5 +1,9 @@
 class_name GameConfig
 
+# Scene paths
+const SCENE_MAIN_MENU  := "res://MainMenu.tscn"
+const SCENE_RACE_TRACK := "res://RaceTrack.tscn"
+
 # Group names
 const GROUP_HORSES := &"horses"
 const GROUP_TRACK  := &"track_group"

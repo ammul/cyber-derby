@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Cyber-Derby"
-run/main_scene="uid://dvh0snlcoc0uc"
+run/main_scene="uid://cm1d9f7y4x0pa"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
