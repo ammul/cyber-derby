@@ -231,80 +231,167 @@ func _handle_repulsion(delta: float) -> void:
 
 func _draw() -> void:
 	var bob := sin(animation_time) * GameConfig.BOB_AMPLITUDE
-	var leg_swing := sin(animation_time) * GameConfig.LEG_AMPLITUDE
-	_draw_body(bob, leg_swing)
+	_draw_body(bob)
 	_draw_selection_indicator()
 	_draw_lightning_effect()
 	_draw_slipstream()
 
 
-func _draw_body(bob: float, leg_swing: float) -> void:
+func _draw_body(bob: float) -> void:
 	var tint := Color(0, 0, 0, 0)
 	if speed_modifier > 1.2:
 		tint = GameConfig.COLOR_BOOST_TINT
 	elif speed_modifier < 1.0:
 		tint = GameConfig.COLOR_SLOW_TINT
 
-	var draw_body_color := body_color + tint
-	var draw_head_color := head_color + tint
-	var draw_tail_color := head_color + tint
+	var bc := body_color + tint
+	var hc := head_color + tint
+	var mc := head_color.darkened(0.35) + tint  # mane and tail
 
-	draw_line(Vector2(-10, -10 + bob), Vector2(-16, -4 + sin(animation_time * GameConfig.TAIL_FREQ) * GameConfig.TAIL_AMPLITUDE), draw_tail_color, 3.0)
+	# Tail (behind body — drawn first)
+	var tail_lag := animation_time * GameConfig.TAIL_FREQ - 0.6
+	var tail_sway := sin(tail_lag) * GameConfig.TAIL_AMPLITUDE
+	var tb := Vector2(-17.0, -8.0 + bob)
+	var tm := tb + Vector2(-5.0, 2.0 + tail_sway * 0.35)
+	draw_line(tb, tm, mc, 5.0)
+	for i in 4:
+		var sy := (float(i) - 1.5) * 5.0
+		draw_line(tm, tm + Vector2(-8.0, 6.0 + sy + tail_sway * 0.8), mc, 2.0)
 
-	draw_line(Vector2(-7, -5 + bob), Vector2(-7 + leg_swing, 8), draw_body_color, 3.0)
-	draw_line(Vector2(-4, -5 + bob), Vector2(-4 - leg_swing, 8), draw_body_color, 3.0)
+	# Main barrel
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(-15.0, 3.0 + bob),
+		Vector2(-18.0, -5.0 + bob),
+		Vector2(-16.0, -13.0 + bob),
+		Vector2(-8.0,  -15.0 + bob),
+		Vector2(2.0,   -17.0 + bob),
+		Vector2(8.0,   -14.0 + bob),
+		Vector2(12.0,  -7.0 + bob),
+		Vector2(10.0,   3.0 + bob),
+		Vector2(2.0,    5.0 + bob),
+		Vector2(-8.0,   5.0 + bob),
+	]), bc)
 
-	draw_rect(Rect2(-12, -15 + bob, 22, 12), draw_body_color)
+	# Rump highlight
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(-14.0, -13.0 + bob),
+		Vector2(-18.0, -10.0 + bob),
+		Vector2(-17.0,  -5.0 + bob),
+		Vector2(-14.0,  -8.0 + bob),
+	]), bc.lightened(0.07))
 
+	# Neck
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(8.0,  -14.0 + bob),
+		Vector2(12.0,  -7.0 + bob),
+		Vector2(17.0, -17.0 + bob),
+		Vector2(14.0, -24.0 + bob),
+	]), bc)
+
+	# Head
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(14.0, -24.0 + bob),
+		Vector2(21.0, -27.0 + bob),
+		Vector2(26.0, -23.0 + bob),
+		Vector2(28.0, -18.0 + bob),
+		Vector2(25.0, -15.0 + bob),
+		Vector2(19.0, -16.0 + bob),
+		Vector2(16.0, -19.0 + bob),
+	]), hc)
+
+	# Nostril
+	draw_circle(Vector2(27.0, -18.0 + bob), 1.5, hc.darkened(0.5))
+	# Eye
+	draw_circle(Vector2(21.0, -23.0 + bob), 2.0, Color(0.08, 0.04, 0.01))
+	draw_circle(Vector2(21.5, -23.5 + bob), 0.7, Color(1.0, 1.0, 1.0, 0.7))
+	# Ear
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(15.0, -26.0 + bob),
+		Vector2(14.0, -31.0 + bob),
+		Vector2(18.0, -28.0 + bob),
+	]), hc.darkened(0.1))
+
+	# Mane strands from poll down neck crest
+	for i in 4:
+		var ft := float(i) / 3.0
+		var mx := lerp(13.0, 5.0, ft)
+		var my := lerp(-23.0, -14.0, ft) + bob
+		var ang := -PI * 0.35 - ft * 0.3
+		draw_line(Vector2(mx, my), Vector2(mx + cos(ang) * 5.0, my + sin(ang) * 5.0), mc, 2.5)
+
+	# Four legs — gallop gait with independent phase offsets
+	var t := animation_time
+	_draw_leg(Vector2(-10.0, 3.0 + bob), t + PI,         bc)
+	_draw_leg(Vector2(-7.0,  3.0 + bob), t + PI * 1.7,   bc.darkened(0.15))
+	_draw_leg(Vector2(5.0,   2.0 + bob), t,               bc)
+	_draw_leg(Vector2(8.0,   2.0 + bob), t + PI * 0.7,    bc.darkened(0.15))
+
+	# Gender anatomy
 	if is_male:
-		_draw_male_anatomy(bob, draw_body_color)
+		_draw_male_anatomy(bob, bc)
+	else:
+		_draw_female_anatomy(bob, bc)
 
-	draw_rect(Rect2(-4, -15 + bob, 8, 4), Color(1, 1, 1, 1))
+	# Saddle pad
+	draw_rect(Rect2(-6.0, -17.0 + bob, 9.0, 4.0), Color(0.9, 0.9, 0.9, 0.85))
 
-	draw_line(Vector2(5, -5 + bob), Vector2(5 + leg_swing, 8), draw_body_color, 3.0)
-	draw_line(Vector2(8, -5 + bob), Vector2(8 - leg_swing, 8), draw_body_color, 3.0)
+	_draw_rider(bob, bc)
 
-	draw_line(Vector2(10, -10 + bob), Vector2(15, -20 + bob), draw_body_color, 5.0)
-	draw_rect(Rect2(13, -24 + bob, 10, 7), draw_head_color)
-	draw_rect(Rect2(14, -26 + bob, 2, 3), draw_head_color)
 
-	_draw_rider(bob, draw_body_color)
+func _draw_leg(attach: Vector2, phase: float, color: Color) -> void:
+	var swing := sin(phase) * GameConfig.LEG_AMPLITUDE
+	var knee := attach + Vector2(swing * 0.6, 8.0)
+	var fetlock := knee + Vector2(swing * 0.4, 7.0)
+	draw_line(attach, knee, color, 2.5)
+	draw_line(knee, fetlock, color, 2.0)
+	draw_rect(Rect2(fetlock.x - 2.0, fetlock.y, 4.0, 2.5), Color(0.1, 0.07, 0.04))
 
 
 func _draw_rider(bob: float, jersey_color: Color) -> void:
 	var skin := Color(0.95, 0.78, 0.62)
 	var helmet_color := Color(0.15, 0.15, 0.75)
 
-	# Lower legs hanging alongside the horse's barrel
-	draw_line(Vector2(-3, -15 + bob), Vector2(-9, -8 + bob), jersey_color, 2.5)
-	draw_line(Vector2(3, -15 + bob), Vector2(9, -8 + bob), jersey_color, 2.5)
+	# Lower legs hanging alongside the barrel
+	draw_line(Vector2(-4.0, -16.0 + bob), Vector2(-11.0, -9.0 + bob), jersey_color, 2.5)
+	draw_line(Vector2(2.0,  -16.0 + bob), Vector2(9.0,   -9.0 + bob), jersey_color, 2.5)
 
-	# Torso (jersey in horse's colours)
-	draw_rect(Rect2(-3, -24 + bob, 6, 9), jersey_color)
+	# Torso (jersey in horse colours)
+	draw_rect(Rect2(-4.0, -25.0 + bob, 7.0, 9.0), jersey_color)
 
-	# Race-number bib on torso
+	# Race-number bib
 	var default_font := ThemeDB.get_fallback_font()
-	draw_string(default_font, Vector2(-3, -20 + bob), str(horse_index + 1), HORIZONTAL_ALIGNMENT_CENTER, 6, GameConfig.SADDLE_FONT_SIZE, Color(1, 1, 1))
+	draw_string(default_font, Vector2(-1.0, -20.0 + bob), str(horse_index + 1),
+			HORIZONTAL_ALIGNMENT_CENTER, 7, GameConfig.SADDLE_FONT_SIZE, Color(1, 1, 1))
 
 	# Head (skin)
-	draw_rect(Rect2(-3, -29 + bob, 6, 5), skin)
+	draw_rect(Rect2(-3.0, -30.0 + bob, 6.0, 5.0), skin)
 
 	# Helmet body + brim
-	draw_rect(Rect2(-4, -34 + bob, 8, 6), helmet_color)
-	draw_rect(Rect2(-5, -29 + bob, 10, 2), helmet_color)
+	draw_rect(Rect2(-4.0, -35.0 + bob, 8.0, 6.0), helmet_color)
+	draw_rect(Rect2(-5.0, -30.0 + bob, 10.0, 2.0), helmet_color)
 
 	# Forward arm holding reins
-	draw_line(Vector2(3, -21 + bob), Vector2(13, -18 + bob), skin, 2.0)
+	draw_line(Vector2(3.0, -22.0 + bob), Vector2(16.0, -19.0 + bob), skin, 2.0)
 
 
 func _draw_male_anatomy(bob: float, coat_color: Color) -> void:
 	var phallus_color := coat_color.darkened(0.25)
-	# Sheath hanging from belly between rear legs
-	draw_rect(Rect2(-9, -2 + bob, 5, 6), phallus_color)
-	draw_circle(Vector2(-6, 5 + bob), 2.5, phallus_color)
+	# Sheath between hind legs
+	draw_rect(Rect2(-12.0, 1.0 + bob, 5.0, 6.0), phallus_color)
+	draw_circle(Vector2(-9.0, 8.0 + bob), 2.5, phallus_color)
 	# Testes
-	draw_circle(Vector2(-4, 7 + bob), 2.5, phallus_color)
-	draw_circle(Vector2(-9, 7 + bob), 2.5, phallus_color)
+	draw_circle(Vector2(-7.0,  10.0 + bob), 2.5, phallus_color)
+	draw_circle(Vector2(-12.0, 10.0 + bob), 2.5, phallus_color)
+
+
+func _draw_female_anatomy(bob: float, coat_color: Color) -> void:
+	var udder_color := coat_color.lightened(0.18)
+	# Udder glands between hind legs
+	draw_circle(Vector2(-11.0, 7.0 + bob), 3.0, udder_color)
+	draw_circle(Vector2(-7.0,  7.0 + bob), 3.0, udder_color)
+	# Teats
+	draw_line(Vector2(-11.0, 9.0 + bob), Vector2(-11.0, 12.0 + bob), udder_color.darkened(0.2), 1.5)
+	draw_line(Vector2(-7.0,  9.0 + bob), Vector2(-7.0,  12.0 + bob), udder_color.darkened(0.2), 1.5)
 
 
 func _draw_selection_indicator() -> void:

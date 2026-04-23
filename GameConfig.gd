@@ -104,7 +104,7 @@ const TAIL_FREQ             := 0.8
 const TAIL_AMPLITUDE        := 7.0
 const SELECTION_WOBBLE_FREQ := 1.0
 const SELECTION_WOBBLE_AMP  := 5.0
-const SELECTION_TOP_Y       := -30.0
+const SELECTION_TOP_Y       := -44.0
 const SELECTION_TRI_H       := 10.0
 
 # Lightning rendering
