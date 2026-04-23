@@ -24,12 +24,14 @@ var target_mod_vis: float = 1.0
 
 var lightning_timer: float = 0.0
 var is_shocked: bool = false
+var is_male: bool = false
 
 var _horses_cache: Array = []
 var _decision_timer: float = 0.0
 
 
 func _ready() -> void:
+	is_male = randf() > 0.5
 	add_to_group(GameConfig.GROUP_HORSES)
 	if track:
 		position.x = GameConfig.START_LINE_X - 30
@@ -246,7 +248,6 @@ func _draw_body(bob: float, leg_swing: float) -> void:
 	var draw_body_color := body_color + tint
 	var draw_head_color := head_color + tint
 	var draw_tail_color := head_color + tint
-	var draw_saddle_color := Color(1, 1, 1, 1)
 
 	draw_line(Vector2(-10, -10 + bob), Vector2(-16, -4 + sin(animation_time * GameConfig.TAIL_FREQ) * GameConfig.TAIL_AMPLITUDE), draw_tail_color, 3.0)
 
@@ -254,13 +255,11 @@ func _draw_body(bob: float, leg_swing: float) -> void:
 	draw_line(Vector2(-4, -5 + bob), Vector2(-4 - leg_swing, 8), draw_body_color, 3.0)
 
 	draw_rect(Rect2(-12, -15 + bob, 22, 12), draw_body_color)
-	draw_rect(Rect2(-4, -15 + bob, 8, 4), draw_saddle_color)
 
-	var default_font := ThemeDB.get_fallback_font()
-	var saddle_pos := Vector2(-5, -16 + bob)
-	var saddle_size := Vector2(10, 10)
-	draw_rect(Rect2(saddle_pos, saddle_size), draw_saddle_color)
-	draw_string(default_font, saddle_pos + Vector2(0, 8), str(horse_index + 1), HORIZONTAL_ALIGNMENT_CENTER, saddle_size.x, GameConfig.SADDLE_FONT_SIZE, Color(0, 0, 0))
+	if is_male:
+		_draw_male_anatomy(bob, draw_body_color)
+
+	draw_rect(Rect2(-4, -15 + bob, 8, 4), Color(1, 1, 1, 1))
 
 	draw_line(Vector2(5, -5 + bob), Vector2(5 + leg_swing, 8), draw_body_color, 3.0)
 	draw_line(Vector2(8, -5 + bob), Vector2(8 - leg_swing, 8), draw_body_color, 3.0)
@@ -268,6 +267,44 @@ func _draw_body(bob: float, leg_swing: float) -> void:
 	draw_line(Vector2(10, -10 + bob), Vector2(15, -20 + bob), draw_body_color, 5.0)
 	draw_rect(Rect2(13, -24 + bob, 10, 7), draw_head_color)
 	draw_rect(Rect2(14, -26 + bob, 2, 3), draw_head_color)
+
+	_draw_rider(bob, draw_body_color)
+
+
+func _draw_rider(bob: float, jersey_color: Color) -> void:
+	var skin := Color(0.95, 0.78, 0.62)
+	var helmet_color := Color(0.15, 0.15, 0.75)
+
+	# Lower legs hanging alongside the horse's barrel
+	draw_line(Vector2(-3, -15 + bob), Vector2(-9, -8 + bob), jersey_color, 2.5)
+	draw_line(Vector2(3, -15 + bob), Vector2(9, -8 + bob), jersey_color, 2.5)
+
+	# Torso (jersey in horse's colours)
+	draw_rect(Rect2(-3, -24 + bob, 6, 9), jersey_color)
+
+	# Race-number bib on torso
+	var default_font := ThemeDB.get_fallback_font()
+	draw_string(default_font, Vector2(-3, -20 + bob), str(horse_index + 1), HORIZONTAL_ALIGNMENT_CENTER, 6, GameConfig.SADDLE_FONT_SIZE, Color(1, 1, 1))
+
+	# Head (skin)
+	draw_rect(Rect2(-3, -29 + bob, 6, 5), skin)
+
+	# Helmet body + brim
+	draw_rect(Rect2(-4, -34 + bob, 8, 6), helmet_color)
+	draw_rect(Rect2(-5, -29 + bob, 10, 2), helmet_color)
+
+	# Forward arm holding reins
+	draw_line(Vector2(3, -21 + bob), Vector2(13, -18 + bob), skin, 2.0)
+
+
+func _draw_male_anatomy(bob: float, coat_color: Color) -> void:
+	var phallus_color := coat_color.darkened(0.25)
+	# Sheath hanging from belly between rear legs
+	draw_rect(Rect2(-9, -2 + bob, 5, 6), phallus_color)
+	draw_circle(Vector2(-6, 5 + bob), 2.5, phallus_color)
+	# Testes
+	draw_circle(Vector2(-4, 7 + bob), 2.5, phallus_color)
+	draw_circle(Vector2(-9, 7 + bob), 2.5, phallus_color)
 
 
 func _draw_selection_indicator() -> void:
