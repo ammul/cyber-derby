@@ -3,7 +3,7 @@
 A retro arcade horse racing game where you secretly manipulate the race — at a karmic cost.
 
 Built with **Godot 4.6** and GDScript. All visuals are procedurally drawn; no external assets required.
-<!-- connection test -->
+<!-- connection test 2 -->
 
 ---
 
