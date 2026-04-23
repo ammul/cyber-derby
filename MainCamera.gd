@@ -7,6 +7,11 @@ extends Camera2D
 @onready var track: RaceTrack = $".."
 
 
+func _ready() -> void:
+	position.x = GameConfig.START_LINE_X + lead_offset * 0.5
+	position.y = GameConfig.GRID_HEIGHT * GameConfig.CELL_SIZE / 2.0
+
+
 func _process(delta: float) -> void:
 	var horses := get_tree().get_nodes_in_group(GameConfig.GROUP_HORSES)
 	if horses.is_empty() or not track.race_started:

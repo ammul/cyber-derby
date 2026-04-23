@@ -75,7 +75,7 @@ shader_parameter/scanline_opacity = 0.2000000095
 script = ExtResource("1_uw2il")
 
 [node name="MainCamera" type="Camera2D" parent="." unique_id=1993860027]
-position = Vector2(400, 200)
+position = Vector2(160, 240)
 script = ExtResource("2_nj26d")
 
 [node name="Horse1" type="Node2D" parent="." unique_id=1374397633 groups=["horses"]]
