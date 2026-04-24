@@ -33,10 +33,10 @@ var _decision_timer: float = 0.0
 func _ready() -> void:
 	is_male = randf() > 0.5
 	add_to_group(GameConfig.GROUP_HORSES)
-	if track:
-		position.x = GameConfig.START_LINE_X - 30
-		position.y = lane_index * GameConfig.CELL_SIZE + (GameConfig.CELL_SIZE / 2.0)
+	position.x = GameConfig.START_LINE_X - 30
+	position.y = lane_index * GameConfig.CELL_SIZE + (GameConfig.CELL_SIZE / 2.0)
 	call_deferred("_init_horses_cache")
+	queue_redraw()
 
 
 func _init_horses_cache() -> void:
@@ -54,6 +54,7 @@ func get_struck_by_lightning() -> void:
 
 func _process(delta: float) -> void:
 	if not track or track.is_race_over:
+		queue_redraw()
 		return
 	if not track.race_started:
 		animation_time += delta * GameConfig.PRE_RACE_ANIM_SPEED
