@@ -10,8 +10,12 @@ signal horse_finished(horse_index: int, karma_score: float)
 @export var repulsion_radius: float = GameConfig.REPULSION_RADIUS
 @export var repulsion_strength: float = GameConfig.REPULSION_STRENGTH
 
-@onready var lane_index: int = horse_index
-@onready var track: RaceTrack = $".."
+# Scale baked here instead of on the Node2D so node scale stays Vector2(1,1)
+const _SX := 1.8
+const _SY := 1.646
+
+var lane_index: int = 0
+var track: RaceTrack = null
 
 var has_finished: bool = false
 var speed_modifier: float = 1.0
@@ -32,9 +36,13 @@ var _decision_timer: float = 0.0
 
 func _ready() -> void:
 	is_male = randf() > 0.5
+	lane_index = horse_index
+	track = get_parent() as RaceTrack
 	add_to_group(GameConfig.GROUP_HORSES)
-	position.x = GameConfig.START_LINE_X - 30
+	position.x = GameConfig.START_LINE_X - 30.0
 	position.y = lane_index * GameConfig.CELL_SIZE + (GameConfig.CELL_SIZE / 2.0)
+	visible = true
+	z_index = 2
 	call_deferred("_init_horses_cache")
 	queue_redraw()
 
@@ -53,13 +61,12 @@ func get_struck_by_lightning() -> void:
 
 
 func _process(delta: float) -> void:
+	queue_redraw()
 	if not track or track.is_race_over:
-		queue_redraw()
 		return
 	if not track.race_started:
 		animation_time += delta * GameConfig.PRE_RACE_ANIM_SPEED
 		_apply_visual_smoothing()
-		queue_redraw()
 		return
 
 	_check_tiles()
@@ -70,7 +77,6 @@ func _process(delta: float) -> void:
 	if is_npc:
 		_handle_npc_tactics(delta)
 	_handle_repulsion(delta)
-	queue_redraw()
 
 
 func _update_movement(delta: float) -> void:
@@ -130,7 +136,6 @@ func _handle_npc_tactics(delta: float) -> void:
 
 	var cell_x := int(position.x / GameConfig.CELL_SIZE)
 
-	# Collision avoidance — highest priority
 	for other in _horses_cache:
 		if other == self:
 			continue
@@ -139,7 +144,6 @@ func _handle_npc_tactics(delta: float) -> void:
 			_try_switch_lane()
 			return
 
-	# Lane scoring
 	var best_lane := lane_index
 	var best_score := -9999.0
 	var lanes_to_check := [lane_index]
@@ -231,6 +235,8 @@ func _handle_repulsion(delta: float) -> void:
 
 
 func _draw() -> void:
+	# Apply former node scale as a draw transform so node scale stays 1×1
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(_SX, _SY))
 	var bob := sin(animation_time) * GameConfig.BOB_AMPLITUDE
 	_draw_body(bob)
 	_draw_selection_indicator()
@@ -247,9 +253,9 @@ func _draw_body(bob: float) -> void:
 
 	var bc := body_color + tint
 	var hc := head_color + tint
-	var mc := head_color.darkened(0.35) + tint  # mane and tail
+	var mc := head_color.darkened(0.35) + tint
 
-	# Tail (behind body — drawn first)
+	# Tail
 	var tail_lag := animation_time * GameConfig.TAIL_FREQ - 0.6
 	var tail_sway := sin(tail_lag) * GameConfig.TAIL_AMPLITUDE
 	var tb := Vector2(-17.0, -8.0 + bob)
@@ -300,19 +306,15 @@ func _draw_body(bob: float) -> void:
 		Vector2(16.0, -19.0 + bob),
 	]), hc)
 
-	# Nostril
 	draw_circle(Vector2(27.0, -18.0 + bob), 1.5, hc.darkened(0.5))
-	# Eye
 	draw_circle(Vector2(21.0, -23.0 + bob), 2.0, Color(0.08, 0.04, 0.01))
 	draw_circle(Vector2(21.5, -23.5 + bob), 0.7, Color(1.0, 1.0, 1.0, 0.7))
-	# Ear
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(15.0, -26.0 + bob),
 		Vector2(14.0, -31.0 + bob),
 		Vector2(18.0, -28.0 + bob),
 	]), hc.darkened(0.1))
 
-	# Mane strands from poll down neck crest
 	for i in 4:
 		var ft := float(i) / 3.0
 		var mx := lerp(13.0, 5.0, ft)
@@ -320,22 +322,18 @@ func _draw_body(bob: float) -> void:
 		var ang := -PI * 0.35 - ft * 0.3
 		draw_line(Vector2(mx, my), Vector2(mx + cos(ang) * 5.0, my + sin(ang) * 5.0), mc, 2.5)
 
-	# Four legs — gallop gait with independent phase offsets
 	var t := animation_time
 	_draw_leg(Vector2(-10.0, 3.0 + bob), t + PI,         bc)
 	_draw_leg(Vector2(-7.0,  3.0 + bob), t + PI * 1.7,   bc.darkened(0.15))
 	_draw_leg(Vector2(5.0,   2.0 + bob), t,               bc)
 	_draw_leg(Vector2(8.0,   2.0 + bob), t + PI * 0.7,    bc.darkened(0.15))
 
-	# Gender anatomy
 	if is_male:
 		_draw_male_anatomy(bob, bc)
 	else:
 		_draw_female_anatomy(bob, bc)
 
-	# Saddle pad
 	draw_rect(Rect2(-6.0, -17.0 + bob, 9.0, 4.0), Color(0.9, 0.9, 0.9, 0.85))
-
 	_draw_rider(bob, bc)
 
 
@@ -352,45 +350,32 @@ func _draw_rider(bob: float, jersey_color: Color) -> void:
 	var skin := Color(0.95, 0.78, 0.62)
 	var helmet_color := Color(0.15, 0.15, 0.75)
 
-	# Lower legs hanging alongside the barrel
 	draw_line(Vector2(-4.0, -16.0 + bob), Vector2(-11.0, -9.0 + bob), jersey_color, 2.5)
 	draw_line(Vector2(2.0,  -16.0 + bob), Vector2(9.0,   -9.0 + bob), jersey_color, 2.5)
-
-	# Torso (jersey in horse colours)
 	draw_rect(Rect2(-4.0, -25.0 + bob, 7.0, 9.0), jersey_color)
 
-	# Race-number bib
 	var default_font := ThemeDB.get_fallback_font()
 	draw_string(default_font, Vector2(-1.0, -20.0 + bob), str(horse_index + 1),
 			HORIZONTAL_ALIGNMENT_CENTER, 7, GameConfig.SADDLE_FONT_SIZE, Color(1, 1, 1))
 
-	# Head (skin)
 	draw_rect(Rect2(-3.0, -30.0 + bob, 6.0, 5.0), skin)
-
-	# Helmet body + brim
 	draw_rect(Rect2(-4.0, -35.0 + bob, 8.0, 6.0), helmet_color)
 	draw_rect(Rect2(-5.0, -30.0 + bob, 10.0, 2.0), helmet_color)
-
-	# Forward arm holding reins
 	draw_line(Vector2(3.0, -22.0 + bob), Vector2(16.0, -19.0 + bob), skin, 2.0)
 
 
 func _draw_male_anatomy(bob: float, coat_color: Color) -> void:
 	var phallus_color := coat_color.darkened(0.25)
-	# Sheath between hind legs
 	draw_rect(Rect2(-12.0, 1.0 + bob, 5.0, 6.0), phallus_color)
 	draw_circle(Vector2(-9.0, 8.0 + bob), 2.5, phallus_color)
-	# Testes
 	draw_circle(Vector2(-7.0,  10.0 + bob), 2.5, phallus_color)
 	draw_circle(Vector2(-12.0, 10.0 + bob), 2.5, phallus_color)
 
 
 func _draw_female_anatomy(bob: float, coat_color: Color) -> void:
 	var udder_color := coat_color.lightened(0.18)
-	# Udder glands between hind legs
 	draw_circle(Vector2(-11.0, 7.0 + bob), 3.0, udder_color)
 	draw_circle(Vector2(-7.0,  7.0 + bob), 3.0, udder_color)
-	# Teats
 	draw_line(Vector2(-11.0, 9.0 + bob), Vector2(-11.0, 12.0 + bob), udder_color.darkened(0.2), 1.5)
 	draw_line(Vector2(-7.0,  9.0 + bob), Vector2(-7.0,  12.0 + bob), udder_color.darkened(0.2), 1.5)
 
