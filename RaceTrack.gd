@@ -14,6 +14,7 @@ var karma_points: float = 0.0
 var is_aiming: bool = false
 var aim_lane: int = 0
 var aim_type: Tile = Tile.EMPTY
+var tile_cooldown_remaining: float = 0.0
 
 var selected_horse_index: int = -1
 var is_selecting: bool = true
@@ -112,10 +113,13 @@ func _place_selected_tile() -> void:
 	var place_x := _get_placement_x_global()
 	if place_x < 0.0:
 		return
+	if tile_cooldown_remaining > 0.0:
+		return
 	var gx := int(place_x / GameConfig.CELL_SIZE)
 	if gx >= 0 and gx < GameConfig.GRID_WIDTH:
 		grid[gx][aim_lane] = aim_type
 		karma_points += GameConfig.KARMA_BOOST_PENALTY if aim_type == Tile.BOOST else GameConfig.KARMA_SLOW_PENALTY
+		tile_cooldown_remaining = GameConfig.TILE_COOLDOWN
 
 
 func _check_horse_selection(m_pos: Vector2) -> void:
@@ -129,6 +133,7 @@ func _check_horse_selection(m_pos: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	karma_points = maxf(0.0, karma_points - delta * GameConfig.KARMA_DECAY_RATE)
+	tile_cooldown_remaining = maxf(0.0, tile_cooldown_remaining - delta)
 	if karma_points >= GameConfig.KARMA_THRESHOLD:
 		trigger_karma_event()
 	queue_redraw()
@@ -200,6 +205,10 @@ func _draw() -> void:
 		var rect_x := int(line_x / GameConfig.CELL_SIZE) * GameConfig.CELL_SIZE
 		var rect_y := aim_lane * GameConfig.CELL_SIZE
 		var preview_rect := Rect2(rect_x, rect_y, GameConfig.CELL_SIZE, GameConfig.CELL_SIZE)
-		var preview_color := GameConfig.COLOR_SLOW_TILE if aim_type == Tile.SLOW else GameConfig.COLOR_BOOST_TILE
-		draw_rect(preview_rect, preview_color, false, 2.0)
-		draw_rect(preview_rect, Color(preview_color.r, preview_color.g, preview_color.b, 0.1), false)
+		if tile_cooldown_remaining > 0.0:
+			draw_rect(preview_rect, Color(0.5, 0.5, 0.5, 0.3), true)
+			draw_rect(preview_rect, Color(0.5, 0.5, 0.5, 0.6), false, 2.0)
+		else:
+			var preview_color := GameConfig.COLOR_SLOW_TILE if aim_type == Tile.SLOW else GameConfig.COLOR_BOOST_TILE
+			draw_rect(preview_rect, preview_color, false, 2.0)
+			draw_rect(preview_rect, Color(preview_color.r, preview_color.g, preview_color.b, 0.1), true)

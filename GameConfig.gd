@@ -80,6 +80,9 @@ const CAMERA_LEAD_OFFSET := 200.0
 # Selection
 const HORSE_SELECT_RADIUS := 40.0
 
+# Tile placement cooldown
+const TILE_COOLDOWN := 2.0
+
 # Screen shake
 const SHAKE_OFFSET   := 8.0
 const SHAKE_DURATION := 0.15
