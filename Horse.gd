@@ -234,9 +234,11 @@ func _handle_repulsion(delta: float) -> void:
 			position += diff.normalized() * (repulsion_radius - distance) * repulsion_strength * delta
 
 
+func _v(x: float, y: float) -> Vector2:
+	return Vector2(x * _SX, y * _SY)
+
+
 func _draw() -> void:
-	# Apply former node scale as a draw transform so node scale stays 1×1
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(_SX, _SY))
 	var bob := sin(animation_time) * GameConfig.BOB_AMPLITUDE
 	_draw_body(bob)
 	_draw_selection_indicator()
@@ -258,61 +260,61 @@ func _draw_body(bob: float) -> void:
 	# Tail
 	var tail_lag := animation_time * GameConfig.TAIL_FREQ - 0.6
 	var tail_sway := sin(tail_lag) * GameConfig.TAIL_AMPLITUDE
-	var tb := Vector2(-17.0, -8.0 + bob)
-	var tm := tb + Vector2(-5.0, 2.0 + tail_sway * 0.35)
+	var tb := _v(-17.0, -8.0 + bob)
+	var tm := tb + _v(-5.0, 2.0 + tail_sway * 0.35)
 	draw_line(tb, tm, mc, 5.0)
 	for i in 4:
 		var sy := (float(i) - 1.5) * 5.0
-		draw_line(tm, tm + Vector2(-8.0, 6.0 + sy + tail_sway * 0.8), mc, 2.0)
+		draw_line(tm, tm + _v(-8.0, 6.0 + sy + tail_sway * 0.8), mc, 2.0)
 
 	# Main barrel
 	draw_colored_polygon(PackedVector2Array([
-		Vector2(-15.0, 3.0 + bob),
-		Vector2(-18.0, -5.0 + bob),
-		Vector2(-16.0, -13.0 + bob),
-		Vector2(-8.0,  -15.0 + bob),
-		Vector2(2.0,   -17.0 + bob),
-		Vector2(8.0,   -14.0 + bob),
-		Vector2(12.0,  -7.0 + bob),
-		Vector2(10.0,   3.0 + bob),
-		Vector2(2.0,    5.0 + bob),
-		Vector2(-8.0,   5.0 + bob),
+		_v(-15.0, 3.0 + bob),
+		_v(-18.0, -5.0 + bob),
+		_v(-16.0, -13.0 + bob),
+		_v(-8.0,  -15.0 + bob),
+		_v(2.0,   -17.0 + bob),
+		_v(8.0,   -14.0 + bob),
+		_v(12.0,  -7.0 + bob),
+		_v(10.0,   3.0 + bob),
+		_v(2.0,    5.0 + bob),
+		_v(-8.0,   5.0 + bob),
 	]), bc)
 
 	# Rump highlight
 	draw_colored_polygon(PackedVector2Array([
-		Vector2(-14.0, -13.0 + bob),
-		Vector2(-18.0, -10.0 + bob),
-		Vector2(-17.0,  -5.0 + bob),
-		Vector2(-14.0,  -8.0 + bob),
+		_v(-14.0, -13.0 + bob),
+		_v(-18.0, -10.0 + bob),
+		_v(-17.0,  -5.0 + bob),
+		_v(-14.0,  -8.0 + bob),
 	]), bc.lightened(0.07))
 
 	# Neck
 	draw_colored_polygon(PackedVector2Array([
-		Vector2(8.0,  -14.0 + bob),
-		Vector2(12.0,  -7.0 + bob),
-		Vector2(17.0, -17.0 + bob),
-		Vector2(14.0, -24.0 + bob),
+		_v(8.0,  -14.0 + bob),
+		_v(12.0,  -7.0 + bob),
+		_v(17.0, -17.0 + bob),
+		_v(14.0, -24.0 + bob),
 	]), bc)
 
 	# Head
 	draw_colored_polygon(PackedVector2Array([
-		Vector2(14.0, -24.0 + bob),
-		Vector2(21.0, -27.0 + bob),
-		Vector2(26.0, -23.0 + bob),
-		Vector2(28.0, -18.0 + bob),
-		Vector2(25.0, -15.0 + bob),
-		Vector2(19.0, -16.0 + bob),
-		Vector2(16.0, -19.0 + bob),
+		_v(14.0, -24.0 + bob),
+		_v(21.0, -27.0 + bob),
+		_v(26.0, -23.0 + bob),
+		_v(28.0, -18.0 + bob),
+		_v(25.0, -15.0 + bob),
+		_v(19.0, -16.0 + bob),
+		_v(16.0, -19.0 + bob),
 	]), hc)
 
-	draw_circle(Vector2(27.0, -18.0 + bob), 1.5, hc.darkened(0.5))
-	draw_circle(Vector2(21.0, -23.0 + bob), 2.0, Color(0.08, 0.04, 0.01))
-	draw_circle(Vector2(21.5, -23.5 + bob), 0.7, Color(1.0, 1.0, 1.0, 0.7))
+	draw_circle(_v(27.0, -18.0 + bob), 1.5 * _SX, hc.darkened(0.5))
+	draw_circle(_v(21.0, -23.0 + bob), 2.0 * _SX, Color(0.08, 0.04, 0.01))
+	draw_circle(_v(21.5, -23.5 + bob), 0.7 * _SX, Color(1.0, 1.0, 1.0, 0.7))
 	draw_colored_polygon(PackedVector2Array([
-		Vector2(15.0, -26.0 + bob),
-		Vector2(14.0, -31.0 + bob),
-		Vector2(18.0, -28.0 + bob),
+		_v(15.0, -26.0 + bob),
+		_v(14.0, -31.0 + bob),
+		_v(18.0, -28.0 + bob),
 	]), hc.darkened(0.1))
 
 	for i in 4:
@@ -320,64 +322,64 @@ func _draw_body(bob: float) -> void:
 		var mx := lerp(13.0, 5.0, ft)
 		var my := lerp(-23.0, -14.0, ft) + bob
 		var ang := -PI * 0.35 - ft * 0.3
-		draw_line(Vector2(mx, my), Vector2(mx + cos(ang) * 5.0, my + sin(ang) * 5.0), mc, 2.5)
+		draw_line(_v(mx, my), _v(mx + cos(ang) * 5.0, my + sin(ang) * 5.0), mc, 2.5)
 
 	var t := animation_time
-	_draw_leg(Vector2(-10.0, 3.0 + bob), t + PI,         bc)
-	_draw_leg(Vector2(-7.0,  3.0 + bob), t + PI * 1.7,   bc.darkened(0.15))
-	_draw_leg(Vector2(5.0,   2.0 + bob), t,               bc)
-	_draw_leg(Vector2(8.0,   2.0 + bob), t + PI * 0.7,    bc.darkened(0.15))
+	_draw_leg(_v(-10.0, 3.0 + bob), t + PI,         bc)
+	_draw_leg(_v(-7.0,  3.0 + bob), t + PI * 1.7,   bc.darkened(0.15))
+	_draw_leg(_v(5.0,   2.0 + bob), t,               bc)
+	_draw_leg(_v(8.0,   2.0 + bob), t + PI * 0.7,    bc.darkened(0.15))
 
 	if is_male:
 		_draw_male_anatomy(bob, bc)
 	else:
 		_draw_female_anatomy(bob, bc)
 
-	draw_rect(Rect2(-6.0, -17.0 + bob, 9.0, 4.0), Color(0.9, 0.9, 0.9, 0.85))
+	draw_rect(Rect2(_v(-6.0, -17.0 + bob), _v(9.0, 4.0)), Color(0.9, 0.9, 0.9, 0.85))
 	_draw_rider(bob, bc)
 
 
 func _draw_leg(attach: Vector2, phase: float, color: Color) -> void:
 	var swing := sin(phase) * GameConfig.LEG_AMPLITUDE
-	var knee := attach + Vector2(swing * 0.6, 8.0)
-	var fetlock := knee + Vector2(swing * 0.4, 7.0)
+	var knee := attach + _v(swing * 0.6, 8.0)
+	var fetlock := knee + _v(swing * 0.4, 7.0)
 	draw_line(attach, knee, color, 2.5)
 	draw_line(knee, fetlock, color, 2.0)
-	draw_rect(Rect2(fetlock.x - 2.0, fetlock.y, 4.0, 2.5), Color(0.1, 0.07, 0.04))
+	draw_rect(Rect2(fetlock + _v(-2.0, 0.0), _v(4.0, 2.5)), Color(0.1, 0.07, 0.04))
 
 
 func _draw_rider(bob: float, jersey_color: Color) -> void:
 	var skin := Color(0.95, 0.78, 0.62)
 	var helmet_color := Color(0.15, 0.15, 0.75)
 
-	draw_line(Vector2(-4.0, -16.0 + bob), Vector2(-11.0, -9.0 + bob), jersey_color, 2.5)
-	draw_line(Vector2(2.0,  -16.0 + bob), Vector2(9.0,   -9.0 + bob), jersey_color, 2.5)
-	draw_rect(Rect2(-4.0, -25.0 + bob, 7.0, 9.0), jersey_color)
+	draw_line(_v(-4.0, -16.0 + bob), _v(-11.0, -9.0 + bob), jersey_color, 2.5)
+	draw_line(_v(2.0,  -16.0 + bob), _v(9.0,   -9.0 + bob), jersey_color, 2.5)
+	draw_rect(Rect2(_v(-4.0, -25.0 + bob), _v(7.0, 9.0)), jersey_color)
 
 	var default_font := ThemeDB.get_fallback_font()
-	draw_string(default_font, Vector2(-1.0, -20.0 + bob), str(horse_index + 1),
-			HORIZONTAL_ALIGNMENT_CENTER, 7, GameConfig.SADDLE_FONT_SIZE, Color(1, 1, 1))
+	draw_string(default_font, _v(-1.0, -20.0 + bob), str(horse_index + 1),
+			HORIZONTAL_ALIGNMENT_CENTER, int(7 * _SX), int(GameConfig.SADDLE_FONT_SIZE * _SY), Color(1, 1, 1))
 
-	draw_rect(Rect2(-3.0, -30.0 + bob, 6.0, 5.0), skin)
-	draw_rect(Rect2(-4.0, -35.0 + bob, 8.0, 6.0), helmet_color)
-	draw_rect(Rect2(-5.0, -30.0 + bob, 10.0, 2.0), helmet_color)
-	draw_line(Vector2(3.0, -22.0 + bob), Vector2(16.0, -19.0 + bob), skin, 2.0)
+	draw_rect(Rect2(_v(-3.0, -30.0 + bob), _v(6.0, 5.0)), skin)
+	draw_rect(Rect2(_v(-4.0, -35.0 + bob), _v(8.0, 6.0)), helmet_color)
+	draw_rect(Rect2(_v(-5.0, -30.0 + bob), _v(10.0, 2.0)), helmet_color)
+	draw_line(_v(3.0, -22.0 + bob), _v(16.0, -19.0 + bob), skin, 2.0)
 
 
 func _draw_male_anatomy(bob: float, coat_color: Color) -> void:
 	var phallus_color := coat_color.darkened(0.25)
-	draw_rect(Rect2(-12.0, 1.0 + bob, 5.0, 6.0), phallus_color)
-	draw_circle(Vector2(-9.0, 8.0 + bob), 2.5, phallus_color)
-	draw_circle(Vector2(-7.0,  10.0 + bob), 2.5, phallus_color)
-	draw_circle(Vector2(-12.0, 10.0 + bob), 2.5, phallus_color)
+	draw_rect(Rect2(_v(-12.0, 1.0 + bob), _v(5.0, 6.0)), phallus_color)
+	draw_circle(_v(-9.0, 8.0 + bob), 2.5 * _SX, phallus_color)
+	draw_circle(_v(-7.0,  10.0 + bob), 2.5 * _SX, phallus_color)
+	draw_circle(_v(-12.0, 10.0 + bob), 2.5 * _SX, phallus_color)
 
 
 func _draw_female_anatomy(bob: float, coat_color: Color) -> void:
 	var udder_color := coat_color.lightened(0.18)
-	draw_circle(Vector2(-11.0, 7.0 + bob), 3.0, udder_color)
-	draw_circle(Vector2(-7.0,  7.0 + bob), 3.0, udder_color)
-	draw_line(Vector2(-11.0, 9.0 + bob), Vector2(-11.0, 12.0 + bob), udder_color.darkened(0.2), 1.5)
-	draw_line(Vector2(-7.0,  9.0 + bob), Vector2(-7.0,  12.0 + bob), udder_color.darkened(0.2), 1.5)
+	draw_circle(_v(-11.0, 7.0 + bob), 3.0 * _SX, udder_color)
+	draw_circle(_v(-7.0,  7.0 + bob), 3.0 * _SX, udder_color)
+	draw_line(_v(-11.0, 9.0 + bob), _v(-11.0, 12.0 + bob), udder_color.darkened(0.2), 1.5)
+	draw_line(_v(-7.0,  9.0 + bob), _v(-7.0,  12.0 + bob), udder_color.darkened(0.2), 1.5)
 
 
 func _draw_selection_indicator() -> void:
@@ -385,9 +387,9 @@ func _draw_selection_indicator() -> void:
 		return
 	var wobble := sin(animation_time * GameConfig.SELECTION_WOBBLE_FREQ) * GameConfig.SELECTION_WOBBLE_AMP
 	var top_y := GameConfig.SELECTION_TOP_Y + wobble
-	var p1 := Vector2(-8, top_y)
-	var p2 := Vector2(8, top_y)
-	var p3 := Vector2(0, top_y + GameConfig.SELECTION_TRI_H)
+	var p1 := _v(-8, top_y)
+	var p2 := _v(8, top_y)
+	var p3 := _v(0, top_y + GameConfig.SELECTION_TRI_H)
 	draw_colored_polygon(PackedVector2Array([p1, p2, p3]), GameConfig.COLOR_SELECTION)
 	draw_polyline(PackedVector2Array([p1, p2, p3, p1]), Color(1, 1, 1), 2.0)
 
@@ -397,11 +399,11 @@ func _draw_lightning_effect() -> void:
 		return
 	var points := PackedVector2Array()
 	var current_y := GameConfig.LIGHTNING_START_Y
-	points.append(Vector2(randf_range(-50, 50), current_y))
+	points.append(_v(randf_range(-50, 50), current_y))
 	for i in range(1, GameConfig.LIGHTNING_SEGMENTS):
 		var progress := float(i) / GameConfig.LIGHTNING_SEGMENTS
-		points.append(Vector2(randf_range(-40, 40), current_y * (1.0 - progress)))
-	points.append(Vector2(0, 0))
+		points.append(_v(randf_range(-40, 40), current_y * (1.0 - progress)))
+	points.append(Vector2.ZERO)
 	draw_polyline(points, GameConfig.COLOR_LIGHTNING_ZAP, 3.0)
 	draw_polyline(points, GameConfig.COLOR_LIGHTNING_CORE, 1.0)
 
@@ -414,7 +416,7 @@ func _draw_slipstream() -> void:
 		var start_x := -15.0 - fmod(time_off, GameConfig.SLIPSTREAM_SCROLL_MOD)
 		var line_y := -10.0 + (i * 8.0) + sin(time_off) * 2.0
 		var line_len := GameConfig.SLIPSTREAM_LEN_BASE + (slipstream_bonus * GameConfig.SLIPSTREAM_LEN_BONUS)
-		var p1 := Vector2(start_x, line_y)
-		var p2 := Vector2(start_x - line_len, line_y)
+		var p1 := _v(start_x, line_y)
+		var p2 := _v(start_x - line_len, line_y)
 		draw_polyline(PackedVector2Array([p1, p2]), GameConfig.COLOR_SLIPSTREAM, GameConfig.SLIPSTREAM_LINE_WIDTH)
 		draw_polyline(PackedVector2Array([p1, p2]), GameConfig.COLOR_SLIPSTREAM_CORE, 0.5)
